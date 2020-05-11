@@ -72,10 +72,6 @@ proc show*(bar: var SuruBar, lastAccess: MonoTime) =
   stdout.flushFile
   stdout.setCursorXPos 0
 
-proc calculateMeanChange(bar: var SuruBar) =
-  bar.stat.push bar.progress - bar.lastProgress
-  bar.lastProgress = bar.progress
-
 #
 
 template len(x: typedesc[array]): int =
@@ -110,9 +106,9 @@ macro suru*(x: ForLoopStmt): untyped =
     `bar`.lastAccess = `bar`.firstAccess
     `bar`.stat.timeAverage = 1000
     `bar`.stat.timeMeasure = 50
+    `bar`.stat.push `bar`.progress - `bar`.lastProgress
     `bar`.show(getMonoTime())
-    `bar`.calculateMeanChange
-    # echo `bar`.repr
+    `bar`.lastProgress = `bar`.progress
 
   var body = x[^1]
   # makes body a statement list to be able to add statements
@@ -127,8 +123,9 @@ macro suru*(x: ForLoopStmt): untyped =
       difference = newTime.ticks - `bar`.lastAccess.ticks
     if difference > 50_000_000:
       `bar`.stat.timeMeasure = difference.int div 1_000_000.int
+      `bar`.stat.push `bar`.progress - `bar`.lastProgress
       `bar`.show(newTime)
-      `bar`.calculateMeanChange
+      `bar`.lastProgress = `bar`.progress
 
   # re-adds the variables into the new for statement
   var newFor = newTree(nnkForStmt)
