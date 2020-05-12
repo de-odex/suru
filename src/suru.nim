@@ -105,7 +105,6 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
 
 proc show*(bar: var SuruBar, index: int = 0) =
   ## Shows the bar in a formatted style.
-  # TODO: multi-bar support
   let difference = index - bar.currentIndex
   if difference < 0:
     stdout.cursorUp(abs(difference))
@@ -248,7 +247,7 @@ when isMainModule:
       sleep(int(sin(a.float / 5) * 50 + 50))
 
   test "multi-bar test":
-    echo "test"
+    echo "check if this line is removed by the bars"
     sleep 1000
     var bar: SuruBar = initSuruBar(25, 25)
 
@@ -263,3 +262,5 @@ when isMainModule:
       bar.update(50_000_000, 1)
 
     bar.finish()
+
+    echo "check if this line is removed by the bars"
