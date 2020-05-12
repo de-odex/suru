@@ -13,7 +13,7 @@ type
     firstAccess: seq[MonoTime]
     lastAccess: seq[MonoTime]
     lastProgress: seq[int]
-    currentIndex: int # for usage in show(), tracks current
+    currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
 
 #
 
