@@ -95,10 +95,11 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
     timeElapsed = (bar.lastAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
     timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
       ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
+    totalStr = $bar.total[index]
 
   result = (percentage*100).formatFloat(ffDecimal, 0).align(3) & "%|" &
     "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded) & "| " &
-    $bar.progress[index] & "/" & $bar.total[index] &
+    ($bar.progress[index]).align(totalStr.len) & "/" & totalStr &
     " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " &
     (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatFloat(ffDecimal, 2)) &
     "/sec]"
@@ -115,6 +116,18 @@ proc show*(bar: var SuruBar, index: int = 0) =
   stdout.write `$`(bar, index)
   stdout.flushFile
   stdout.setCursorXPos 0
+
+proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
+  ## Resets the bar to an empty bar, not including its length and total.
+  let now = getMonoTime()
+  bar.progress[index] = 0
+  bar.total[index] = iterableLength
+  bar.progressStat[index] = ExpMovingAverager()
+  bar.timeStat[index] = ExpMovingAverager()
+  bar.startTime[index] = now
+  bar.lastIncrement[index] = now
+  bar.lastAccess[index] = now
+  bar.lastProgress[index] = 0
 
 proc start*(bar: var SuruBar, iterableLengths: varargs[int]) =
   doAssert iterableLengths.len == bar.len
@@ -209,7 +222,7 @@ when isMainModule:
   randomize()
 
   test "random time test":
-    for a in suru(toSeq(0..<100)):
+    for a in suru(0..<100):
       sleep((rand(99) + 1))
 
   test "long time test":
@@ -222,7 +235,7 @@ when isMainModule:
 
     bar.start(4)
 
-    for a in toSeq(1..1000):
+    for a in 1..1000:
       sleep 4
       if a mod 250 == 0:
         inc bar
@@ -231,7 +244,7 @@ when isMainModule:
     bar.finish()
 
   test "constant time test":
-    for a in suru(toSeq(0..<100)):
+    for a in suru(0..<100):
       sleep(25)
 
   test "v-shaped time test":
@@ -239,28 +252,37 @@ when isMainModule:
       sleep(a)
 
   test "increasing time test":
-    for a in suru(toSeq(1..100)):
+    for a in suru(1..100):
       sleep(a)
 
   test "sinusoidal time test":
-    for a in suru(toSeq(1..100)):
+    for a in suru(1..100):
       sleep(int(sin(a.float / 5) * 50 + 50))
 
   test "multi-bar test":
     echo "check if this line is removed by the bars"
     sleep 1000
     var bar: SuruBar = initSuruBar(25, 25)
-
     bar.start(1000, 40)
-
-    for a in toSeq(1..1000):
+    for a in 1..1000:
       sleep 25
       inc bar
       if a mod 25 == 0:
         inc bar, 1
       bar.update(50_000_000)
       bar.update(50_000_000, 1)
-
     bar.finish()
-
     echo "check if this line is removed by the bars"
+
+  test "iterative bar test":
+    var bar: SuruBar = initSuruBar(25, 25)
+    bar.start(10, 100)
+    for a in 1..10:
+      bar.reset(1, a*10)
+      for b in 1..a*10:
+        sleep 25
+        inc bar, 1
+        bar.update(50_000_000)
+        bar.update(50_000_000, 1)
+      inc bar
+    bar.finish()
