@@ -3,19 +3,36 @@ suru
 
 A tqdm-style progress bar in Nim
 
-[![asciicast](https://asciinema.org/a/fLsiHgLwS8uNsGOE4wezzLL2r.svg)](https://asciinema.org/a/fLsiHgLwS8uNsGOE4wezzLL2r)
-video above uses this code:
+[![asciicast](https://asciinema.org/a/ZVafSHnZeVMYQA28CN5IKewXH.svg)](https://asciinema.org/a/ZVafSHnZeVMYQA28CN5IKewXH)
+
+the demo above uses this code:
 ```nim
-import os, sequtils, random
+import unittest, os, sequtils, random
 randomize()
 
-for b in suru(toSeq(0..<100)):
-  sleep((rand(99) + 1))
-  discard
+test "random time test":
+  for a in suru(toSeq(0..<100)):
+    sleep((rand(99) + 1))
 
-for a, b in suru([1, 2, 3, 5]):
-  sleep(1000)
-  discard
+test "long time test":
+  for a in suru([1, 2, 3, 5]):
+    sleep(1000)
+
+test "constant time test":
+  for a in suru(toSeq(0..<100)):
+    sleep(25)
+
+test "v-shaped time test":
+  for a in suru(toSeq(1..100) & toSeq(countdown(100, 1))):
+    sleep(a)
+
+test "increasing time test":
+  for a in suru(toSeq(1..100)):
+    sleep(a)
+
+test "sinusoidal time test":
+  for a in suru(toSeq(1..100)):
+    sleep(int(sin(a.float / 5) * 50 + 50))
 ```
 
 Dependencies
