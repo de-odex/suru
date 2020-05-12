@@ -35,6 +35,40 @@ test "sinusoidal time test":
     sleep(int(sin(a.float / 5) * 50 + 50))
 ```
 
+Usage
+-----
+
+suru can be used in two ways:
+```nim
+import suru
+
+for a in suru([20, 90, 120]):
+  # do something
+  discard
+```
+
+or
+
+```nim
+import suru
+
+var bar: SuruBar = initSuruBar()
+# pass in a positive integer if you want to change the bar length
+
+bar.start(3) # the length of the iterable
+             # or how many iterations will happen
+             # pass 0 for an unknown length
+
+for a in [20, 90, 120]:
+  # do something
+
+  inc bar
+  bar.update(50_000_000) # in nanoseconds, so the literal is 50 ms
+  # you can change the delay to any delay you want
+
+bar.finish()
+```
+
 Dependencies
 ------------
 
