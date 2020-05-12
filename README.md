@@ -3,7 +3,7 @@ suru
 
 A tqdm-style progress bar in Nim
 
-[![asciicast](https://asciinema.org/a/ZVafSHnZeVMYQA28CN5IKewXH.svg)](https://asciinema.org/a/ZVafSHnZeVMYQA28CN5IKewXH)
+![asciicast](https://raw.githubusercontent.com/de-odex/suru/master/demo.gif)
 
 the demo above uses this code:
 ```nim
