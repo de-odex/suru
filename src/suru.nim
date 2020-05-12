@@ -73,11 +73,11 @@ proc show*(bar: var SuruBar) =
   stdout.flushFile
   stdout.setCursorXPos 0
 
-proc initPreLoop(bar: var SuruBar, iterableLength: int) =
+proc initPreLoop*(bar: var SuruBar, iterableLength: int) =
   bar.total = iterableLength
   bar.firstAccess = getMonoTime()
 
-proc update(bar: var SuruBar, time: MonoTime, difference: SomeInteger) =
+proc update*(bar: var SuruBar, time: MonoTime, difference: SomeInteger) =
   bar.lastAccess = time
   bar.timeStat.push difference.int div 1_000_000.int
   bar.progressStat.push bar.progress - bar.lastProgress
