@@ -33,15 +33,19 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     @[25]
   else:
     @lengths
+  let
+    zeroes = 0.repeat(lengths.len)
+    averagers = ExpMovingAverager().repeat(lengths.len)
+    monotimes = MonoTime().repeat(lengths.len)
   SuruBar(
     length: lengths,
-    progress: 0.repeat(lengths.len),
-    total: 0.repeat(lengths.len),
-    progressStat: ExpMovingAverager().repeat(lengths.len),
-    timeStat: ExpMovingAverager().repeat(lengths.len),
-    firstAccess: MonoTime().repeat(lengths.len),
-    lastAccess: MonoTime().repeat(lengths.len),
-    lastProgress: 0.repeat(lengths.len),
+    progress: zeroes,
+    total: zeroes,
+    progressStat: averagers,
+    timeStat: averagers,
+    firstAccess: monotimes,
+    lastAccess: monotimes,
+    lastProgress: zeroes,
   )
 
 # proc initSuruBar*(length: int = 25): SuruBar =
