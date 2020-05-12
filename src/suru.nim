@@ -3,14 +3,13 @@ import macros, std/monotimes, times, terminal, math, strutils
 
 type
   ExpMovingAverager = object
-    timeAverage: int ## in milliseconds
-    timeMeasure: int ## in milliseconds
     mean: float
   SuruBar* = object
     length: int
     progress: int
     total: int
-    stat: ExpMovingAverager
+    progressStat: ExpMovingAverager
+    timeStat: ExpMovingAverager
     firstAccess: MonoTime
     lastAccess: MonoTime
     lastProgress: int
@@ -22,9 +21,16 @@ proc push(mv: var ExpMovingAverager, value: int) =
   if mv.mean == 0:
     mv.mean = valFloat
   else:
-    mv.mean = valFloat + exp(-mv.timeMeasure/mv.timeAverage) * (mv.mean - valFloat)
+    mv.mean = valFloat + exp(-1/5) * (mv.mean - valFloat)
 
 #
+
+proc initSuruBar*(length: int = 25): SuruBar =
+  ## Creates a SuruBar with a length
+  ## Does not prime the bar for a loop, use initPreLoop for that
+  SuruBar(
+    length: length
+  )
 
 proc inc*(bar: var SuruBar) =
   ## Increments the bar progress
@@ -44,32 +50,33 @@ proc `$`*(bar: SuruBar): string =
     percentage = bar.progress / bar.total
     shaded = floor(percentage * length).int
     fractional = floor(percentage * length * 8).int - (shaded * 8)
-    perSec = bar.stat.mean * (1000/bar.stat.timeMeasure)
+    unshaded = length.int - shaded - (if fractional == 0: 0 else: 1)
+    perSec = bar.progressStat.mean * (1000/bar.timeStat.mean)
     timeElapsed = ((bar.lastAccess.ticks - bar.firstAccess.ticks) div 1_000_000_000).formatTime
     timeLeft = if perSec > 0: round((bar.total - bar.progress).float / perSec).int.formatTime else: "??:??"
 
-  result = "|" & "█".repeat(shaded) & fractionals[fractional] &
-    " ".repeat(length.int - shaded - (if fractional == 0: 0 else: 1)) & "| " &
-    $bar.progress & "/" & $bar.total &
-    " [" & timeElapsed & "<" & timeLeft & ", " &
-    perSec.formatFloat(ffDecimal, 2) & "/sec]"
+  result = (percentage*100).formatFloat(ffDecimal, 0).align(3) & "%|" &
+    "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded) & "| " &
+    $bar.progress & "/" & $bar.total & " [" & timeElapsed & "<" & timeLeft &
+    ", " & perSec.formatFloat(ffDecimal, 2) & "/sec]"
 
 proc show*(bar: var SuruBar) =
   ## Shows the bar in a formatted style.
-  ## Does not set lastAccess, use show(bar: var SuruBar, lastAccess: MonoTime) instead
   stdout.eraseLine
   stdout.write $bar
   stdout.flushFile
   stdout.setCursorXPos 0
 
-proc show*(bar: var SuruBar, lastAccess: MonoTime) =
-  ## Shows the bar in a formatted style.
-  ## Sets lastAccess, use show(bar: var SuruBar) for the final printing
-  bar.lastAccess = lastAccess
-  stdout.eraseLine
-  stdout.write $bar
-  stdout.flushFile
-  stdout.setCursorXPos 0
+proc initPreLoop(bar: var SuruBar, iterableLength: int) =
+  bar.total = iterableLength
+  bar.firstAccess = getMonoTime()
+
+proc update(bar: var SuruBar, time: MonoTime, difference: SomeInteger) =
+  bar.lastAccess = time
+  bar.timeStat.push difference.int div 1_000_000.int
+  bar.progressStat.push bar.progress - bar.lastProgress
+  bar.show()
+  bar.lastProgress = bar.progress
 
 #
 
@@ -100,14 +107,8 @@ macro suru*(x: ForLoopStmt): untyped =
       `bar`: SuruBar
       `toIterate` = `a`
 
-    `bar`.total = len(`toIterate`)
-    `bar`.firstAccess = getMonoTime()
-    `bar`.lastAccess = `bar`.firstAccess
-    `bar`.stat.timeAverage = 1000
-    `bar`.stat.timeMeasure = 50
-    `bar`.stat.push `bar`.progress - `bar`.lastProgress
-    `bar`.show(getMonoTime())
-    `bar`.lastProgress = `bar`.progress
+    `bar`.initPreLoop(len(`toIterate`))
+    `bar`.update(getMonoTime(), 0)
 
   var body = x[^1]
   # makes body a statement list to be able to add statements
@@ -121,10 +122,7 @@ macro suru*(x: ForLoopStmt): untyped =
       newTime = getMonoTime()
       difference = newTime.ticks - `bar`.lastAccess.ticks
     if difference > 50_000_000:
-      `bar`.stat.timeMeasure = difference.int div 1_000_000.int
-      `bar`.stat.push `bar`.progress - `bar`.lastProgress
-      `bar`.show(newTime)
-      `bar`.lastProgress = `bar`.progress
+      `bar`.update(newTime, difference)
 
   # re-adds the variables into the new for statement
   var newFor = newTree(nnkForStmt)
@@ -160,12 +158,10 @@ when isMainModule:
     for a in suru(toSeq(0..<100)):
       sleep(25)
 
-  # FIXME: unsure if bug, but perSec does not smoothly decrease and increase, sometimes it jumps suddenly
   test "v-shaped time test":
     for a in suru(toSeq(1..100) & toSeq(countdown(100, 1))):
       sleep(a)
 
-  # FIXME: incorrect behavior; at some point, the moving average starts lagging somehow
   test "increasing time test":
     for a in suru(toSeq(1..100)):
       sleep(a)
