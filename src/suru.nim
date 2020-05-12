@@ -5,7 +5,7 @@ type
   ExpMovingAverager = object
     mean: float
   SuruBar* = object
-    length: int
+    length: Natural
     progress: int
     total: int
     progressStat: ExpMovingAverager
@@ -25,7 +25,7 @@ proc push(mv: var ExpMovingAverager, value: int) =
 
 #
 
-proc initSuruBar*(length: int = 25): SuruBar =
+proc initSuruBar*(length: Natural = 25): SuruBar =
   ## Creates a SuruBar with a length
   ## Does not prime the bar for a loop, use initPreLoop for that
   SuruBar(
@@ -73,16 +73,29 @@ proc show*(bar: var SuruBar) =
   stdout.flushFile
   stdout.setCursorXPos 0
 
-proc initPreLoop*(bar: var SuruBar, iterableLength: int) =
+proc start*(bar: var SuruBar, iterableLength: int) =
   bar.total = iterableLength
   bar.firstAccess = getMonoTime()
-
-proc update*(bar: var SuruBar, time: MonoTime, difference: SomeInteger) =
-  bar.lastAccess = time
-  bar.timeStat.push difference.int div 1_000_000.int
+  bar.lastAccess = bar.firstAccess
+  bar.timeStat.push 0
   bar.progressStat.push bar.progress - bar.lastProgress
   bar.show()
   bar.lastProgress = bar.progress
+
+proc update*(bar: var SuruBar, delay: int) =
+  let
+    newTime = getMonoTime()
+    difference = newTime.ticks - bar.lastAccess.ticks # in nanoseconds
+  if difference > delay: # in nanoseconds
+    bar.lastAccess = newTime
+    bar.timeStat.push difference.int div 1_000_000.int
+    bar.progressStat.push bar.progress - bar.lastProgress
+    bar.show()
+    bar.lastProgress = bar.progress
+
+proc finish(bar: var SuruBar) =
+  bar.show()
+  echo ""
 
 #
 
@@ -113,8 +126,7 @@ macro suru*(x: ForLoopStmt): untyped =
       `bar`: SuruBar = initSuruBar()
       `toIterate` = `a`
 
-    `bar`.initPreLoop(len(`toIterate`))
-    `bar`.update(getMonoTime(), 0)
+    `bar`.start(len(`toIterate`))
 
   var body = x[^1]
   # makes body a statement list to be able to add statements
@@ -124,11 +136,7 @@ macro suru*(x: ForLoopStmt): untyped =
   # in-loop printing of the progress bar
   body.add quote do:
     inc `bar`
-    let
-      newTime = getMonoTime()
-      difference = newTime.ticks - `bar`.lastAccess.ticks
-    if difference > 50_000_000:
-      `bar`.update(newTime, difference)
+    `bar`.update(50_000_000)
 
   # re-adds the variables into the new for statement
   var newFor = newTree(nnkForStmt)
@@ -145,8 +153,7 @@ macro suru*(x: ForLoopStmt): untyped =
   result = quote do:
     block:
       `result`
-      `bar`.show()
-      echo ""
+      `bar`.finish()
 
 when isMainModule:
   import unittest, os, sequtils, random
