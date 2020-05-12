@@ -36,8 +36,17 @@ proc inc*(bar: var SuruBar) =
   ## Increments the bar progress
   inc bar.progress
 
-proc formatTime(secs: SomeInteger): string =
-  result = align($(secs div 60), 2, '0') & ":" & align($(secs mod 60), 2, '0')
+proc formatTime(secs: SomeFloat): string =
+  if secs < 0:
+    # if time is under 0, output ??
+    "??s"
+  elif secs <= 180:
+    # under three minutes, just render as seconds
+    secs.formatFloat(ffDecimal, 1) & "s"
+  else:
+    # use minute format
+    let secs = round(secs).int
+    align($(secs div 60), 2, '0') & ":" & align($(secs mod 60), 2, '0')
 
 let fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 proc `$`*(bar: SuruBar): string =
@@ -52,8 +61,8 @@ proc `$`*(bar: SuruBar): string =
     fractional = floor(percentage * length * 8).int - (shaded * 8)
     unshaded = length.int - shaded - (if fractional == 0: 0 else: 1)
     perSec = bar.progressStat.mean * (1000/bar.timeStat.mean)
-    timeElapsed = ((bar.lastAccess.ticks - bar.firstAccess.ticks) div 1_000_000_000).formatTime
-    timeLeft = if perSec > 0: round((bar.total - bar.progress).float / perSec).int.formatTime else: "??:??"
+    timeElapsed = ((bar.lastAccess.ticks - bar.firstAccess.ticks).float / 1_000_000_000).formatTime
+    timeLeft = ((bar.total - bar.progress).float / perSec).formatTime
 
   result = (percentage*100).formatFloat(ffDecimal, 0).align(3) & "%|" &
     "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded) & "| " &
