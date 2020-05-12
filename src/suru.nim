@@ -10,7 +10,8 @@ type
     total: seq[int]
     progressStat: seq[ExpMovingAverager]
     timeStat: seq[ExpMovingAverager]
-    firstAccess: seq[MonoTime]
+    startTime: seq[MonoTime]
+    lastIncrement: seq[MonoTime]
     lastAccess: seq[MonoTime]
     lastProgress: seq[int]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
@@ -43,7 +44,8 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     total: zeroes,
     progressStat: averagers,
     timeStat: averagers,
-    firstAccess: monotimes,
+    startTime: monotimes,
+    lastIncrement: monotimes,
     lastAccess: monotimes,
     lastProgress: zeroes,
   )
@@ -61,11 +63,19 @@ iterator items(bar: SuruBar): int =
 proc inc*(bar: var SuruBar, index: int = 0) =
   ## Increments the bar progress
   inc bar.progress[index]
+  let newTime = getMonoTime()
+  bar.timeStat[index].push (newTime.ticks - bar.lastIncrement[index].ticks).int div 1_000_000
+  bar.lastIncrement[index] = newTime
+  bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
+  bar.lastProgress[index] = bar.progress[index]
 
 proc formatTime(secs: SomeFloat): string =
-  if secs < 0 or secs.classify notin {fcNormal, fcSubnormal, fcZero}:
-    # if time is under 0 or abnormal, output ??
+  if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
+    # if time is abnormal, output ??
     "??s"
+  elif secs < 0:
+    # cheat bad float subtraction by clipping anything under 0 to 0
+    "0.0s"
   elif secs <= 180:
     # under three minutes, just render as seconds
     secs.formatFloat(ffDecimal, 1) & "s"
@@ -79,16 +89,17 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
   let
     percentage = bar.progress[index] / bar.total[index]
     shaded = floor(percentage * bar.length[index].float).int
-    fractional = floor(percentage * bar.length[index].float * 8).int - (shaded * 8)
+    fractional = floor(percentage * bar.length[index].float * 8).int - shaded * 8
     unshaded = bar.length[index] - shaded - (if fractional == 0: 0 else: 1)
     perSec = bar.progressStat[index].mean * (1000/bar.timeStat[index].mean)
-    timeElapsed = ((bar.lastAccess[index].ticks - bar.firstAccess[index].ticks).float / 1_000_000_000).formatTime
-    timeLeft = ((bar.total[index] - bar.progress[index]).float / perSec).formatTime
+    timeElapsed = (bar.lastAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
+    timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
+      ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
 
   result = (percentage*100).formatFloat(ffDecimal, 0).align(3) & "%|" &
     "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded) & "| " &
-    $bar.progress[index] & "/" & $bar.total[index] & " [" & timeElapsed & "<" & timeLeft &
-    ", " &
+    $bar.progress[index] & "/" & $bar.total[index] &
+    " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " &
     (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatFloat(ffDecimal, 2)) &
     "/sec]"
 
@@ -115,13 +126,13 @@ proc start*(bar: var SuruBar, iterableLengths: varargs[int]) =
     stdout.cursorUp(iterableLengths.len - 1)
 
   bar.total = @iterableLengths
-  bar.firstAccess = getMonoTime().repeat(iterableLengths.len)
-  bar.lastAccess = bar.firstAccess
+  bar.startTime = getMonoTime().repeat(iterableLengths.len)
+  bar.lastAccess = bar.startTime
+  bar.lastIncrement = bar.startTime
   for index in 0..<iterableLengths.len:
     bar.timeStat[index].push 0
-    bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
+    bar.progressStat[index].push 0
     bar.show(index)
-  bar.lastProgress = bar.progress
 
 proc update*(bar: var SuruBar, delay: int, index: int = 0) =
   let
@@ -129,10 +140,7 @@ proc update*(bar: var SuruBar, delay: int, index: int = 0) =
     difference = newTime.ticks - bar.lastAccess[index].ticks # in nanoseconds
   if difference > delay: # in nanoseconds
     bar.lastAccess[index] = newTime
-    bar.timeStat[index].push difference.int div 1_000_000.int
-    bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
     bar.show(index)
-    bar.lastProgress[index] = bar.progress[index]
 
 proc finish(bar: var SuruBar) =
   for index in bar:
@@ -208,6 +216,20 @@ when isMainModule:
   test "long time test":
     for a in suru([1, 2, 3, 5]):
       sleep(1000)
+
+  test "alternate long time test":
+    sleep 1000
+    var bar: SuruBar = initSuruBar(25)
+
+    bar.start(4)
+
+    for a in toSeq(1..1000):
+      sleep 4
+      if a mod 250 == 0:
+        inc bar
+      bar.update(50_000_000)
+
+    bar.finish()
 
   test "constant time test":
     for a in suru(toSeq(0..<100)):
