@@ -37,8 +37,8 @@ proc inc*(bar: var SuruBar) =
   inc bar.progress
 
 proc formatTime(secs: SomeFloat): string =
-  if secs < 0:
-    # if time is under 0, output ??
+  if secs < 0 or secs.classify notin {fcNormal, fcSubnormal, fcZero}:
+    # if time is under 0 or abnormal, output ??
     "??s"
   elif secs <= 180:
     # under three minutes, just render as seconds
@@ -50,16 +50,11 @@ proc formatTime(secs: SomeFloat): string =
 
 let fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 proc `$`*(bar: SuruBar): string =
-  let length: float = if bar.length == 0:
-    25
-  else:
-    bar.length
-
   let
     percentage = bar.progress / bar.total
-    shaded = floor(percentage * length).int
-    fractional = floor(percentage * length * 8).int - (shaded * 8)
-    unshaded = length.int - shaded - (if fractional == 0: 0 else: 1)
+    shaded = floor(percentage * bar.length.float).int
+    fractional = floor(percentage * bar.length.float * 8).int - (shaded * 8)
+    unshaded = bar.length - shaded - (if fractional == 0: 0 else: 1)
     perSec = bar.progressStat.mean * (1000/bar.timeStat.mean)
     timeElapsed = ((bar.lastAccess.ticks - bar.firstAccess.ticks).float / 1_000_000_000).formatTime
     timeLeft = ((bar.total - bar.progress).float / perSec).formatTime
@@ -67,7 +62,9 @@ proc `$`*(bar: SuruBar): string =
   result = (percentage*100).formatFloat(ffDecimal, 0).align(3) & "%|" &
     "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded) & "| " &
     $bar.progress & "/" & $bar.total & " [" & timeElapsed & "<" & timeLeft &
-    ", " & perSec.formatFloat(ffDecimal, 2) & "/sec]"
+    ", " &
+    (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatFloat(ffDecimal, 2)) &
+    "/sec]"
 
 proc show*(bar: var SuruBar) =
   ## Shows the bar in a formatted style.
@@ -113,7 +110,7 @@ macro suru*(x: ForLoopStmt): untyped =
   # first printing of the progress bar
   result.add quote do:
     var
-      `bar`: SuruBar
+      `bar`: SuruBar = initSuruBar()
       `toIterate` = `a`
 
     `bar`.initPreLoop(len(`toIterate`))
