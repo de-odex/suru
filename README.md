@@ -4,7 +4,8 @@ suru
 A tqdm-style progress bar in Nim
 
 [![asciicast](https://asciinema.org/a/ZVafSHnZeVMYQA28CN5IKewXH.svg)](https://asciinema.org/a/ZVafSHnZeVMYQA28CN5IKewXH)
-demo above uses this code:
+
+the demo above uses this code:
 ```nim
 import unittest, os, sequtils, random
 randomize()
