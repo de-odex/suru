@@ -117,6 +117,9 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
     (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatFloat(ffDecimal, 2)) &
     "/sec]"
 
+  when defined(suruDebug):
+    result &= " " & ((getMonoTime().ticks - bar.lastAccess[index].ticks).float/1_000_000).formatFloat(ffDecimal, 2) & "ms/frame"
+
 proc show*(bar: var SuruBar, index: int = 0) =
   ## Shows the bar in a formatted style.
   let difference = index - bar.currentIndex
