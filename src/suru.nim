@@ -1,4 +1,4 @@
-import macros, std/monotimes, times, terminal, math, strutils, sequtils
+import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode
 {.experimental: "forLoopMacros".}
 
 type
@@ -8,6 +8,7 @@ type
     length: seq[int]
     progress: seq[int]
     total: seq[int]
+    barStr: seq[string]
     progressStat: seq[ExpMovingAverager]
     timeStat: seq[ExpMovingAverager]
     startTime: seq[MonoTime]
@@ -15,6 +16,8 @@ type
     lastAccess: seq[MonoTime]
     lastProgress: seq[int]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
+
+let fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 
 #
 
@@ -42,6 +45,7 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     length: lengths,
     progress: zeroes,
     total: zeroes,
+    barStr: lengths.mapIt(" ".repeat(it)),
     progressStat: averagers,
     timeStat: averagers,
     startTime: monotimes,
@@ -63,6 +67,17 @@ iterator items(bar: SuruBar): int =
 proc inc*(bar: var SuruBar, index: int = 0) =
   ## Increments the bar progress
   inc bar.progress[index]
+  let
+    percentage = bar.progress[index] / bar.total[index]
+    shaded = floor(percentage * bar.length[index].float).int
+    fractional = (percentage * bar.length[index].float * 8).int mod 8
+    unshaded = bar.length[index] - shaded - (if fractional == 0: 0 else: 1)
+  # TODO: improve the algorithm
+  if shaded < bar.length[index] and bar.barStr[index].runeAtPos(shaded) != (if fractionals[fractional] == "": " ".toRunes[0] else: fractionals[fractional].toRunes[0]):
+    bar.barStr[index] = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
+  elif shaded == bar.length[index]:
+    bar.barStr[index] = "█".repeat(shaded)
+  # bar.barStr[index] = $fractional
   let newTime = getMonoTime()
   bar.timeStat[index].push (newTime.ticks - bar.lastIncrement[index].ticks).int div 1_000_000
   bar.lastIncrement[index] = newTime
@@ -84,22 +99,18 @@ proc formatTime(secs: SomeFloat): string =
     let secs = round(secs).int
     align($(secs div 60), 2, '0') & ":" & align($(secs mod 60), 2, '0')
 
-let fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 proc `$`*(bar: SuruBar, index: int = 0): string =
   let
     percentage = bar.progress[index] / bar.total[index]
-    shaded = floor(percentage * bar.length[index].float).int
-    fractional = floor(percentage * bar.length[index].float * 8).int - shaded * 8
-    unshaded = bar.length[index] - shaded - (if fractional == 0: 0 else: 1)
     perSec = bar.progressStat[index].mean * (1000/bar.timeStat[index].mean)
     timeElapsed = (bar.lastAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
     timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
       ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
     totalStr = $bar.total[index]
 
-  result = (percentage*100).formatFloat(ffDecimal, 0).align(3) & "%|" &
-    "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded) & "| " &
-    ($bar.progress[index]).align(totalStr.len) & "/" & totalStr &
+  result = (percentage*100).formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+    bar.barStr[index] & "| " &
+    ($bar.progress[index]).align(totalStr.len, ' ') & "/" & totalStr &
     " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " &
     (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatFloat(ffDecimal, 2)) &
     "/sec]"
