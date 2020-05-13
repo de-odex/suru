@@ -13,6 +13,7 @@ type
     timeStat: seq[ExpMovingAverager]
     startTime: seq[MonoTime]
     lastIncrement: seq[MonoTime]
+    currentAccess: seq[MonoTime]
     lastAccess: seq[MonoTime]
     lastProgress: seq[int]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
@@ -50,6 +51,7 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     timeStat: averagers,
     startTime: monotimes,
     lastIncrement: monotimes,
+    currentAccess: monotimes,
     lastAccess: monotimes,
     lastProgress: zeroes,
   )
@@ -103,7 +105,7 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
   let
     percentage = bar.progress[index] / bar.total[index]
     perSec = bar.progressStat[index].mean * (1000/bar.timeStat[index].mean)
-    timeElapsed = (bar.lastAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
+    timeElapsed = (bar.currentAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
     timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
       ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
     totalStr = $bar.total[index]
@@ -137,6 +139,7 @@ proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   bar.timeStat[index] = ExpMovingAverager()
   bar.startTime[index] = now
   bar.lastIncrement[index] = now
+  bar.currentAccess[index] = now
   bar.lastAccess[index] = now
   bar.lastProgress[index] = 0
 
@@ -150,6 +153,7 @@ proc start*(bar: var SuruBar, iterableLengths: varargs[int]) =
 
   bar.total = @iterableLengths
   bar.startTime = getMonoTime().repeat(iterableLengths.len)
+  bar.currentAccess = bar.startTime
   bar.lastAccess = bar.startTime
   bar.lastIncrement = bar.startTime
   for index in 0..<iterableLengths.len:
@@ -162,8 +166,9 @@ proc update*(bar: var SuruBar, delay: int, index: int = 0) =
     newTime = getMonoTime()
     difference = newTime.ticks - bar.lastAccess[index].ticks # in nanoseconds
   if difference > delay: # in nanoseconds
-    bar.lastAccess[index] = newTime
+    bar.currentAccess[index] = newTime
     bar.show(index)
+    bar.lastAccess[index] = newTime
 
 proc finish(bar: var SuruBar) =
   for index in bar:
