@@ -170,10 +170,9 @@ proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   let now = getMonoTime()
   bar.progress[index] = 0
   bar.total[index] = iterableLength
-  bar.barStr = zip(bar.length, bar.total).mapIt(
-    0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(it[0]) & "| " &
-    "0".align(($it[1]).len, ' ') & "/" & ($it[1])
-  )
+  bar.barStr[index] = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+    " ".repeat(bar.length[index]) & "| " & "0".align(($bar.total[index]).len, ' ') &
+    "/" & ($bar.total[index])
   bar.progressStat[index] = ExpMovingAverager()
   bar.timeStat[index] = ExpMovingAverager()
   bar.startTime[index] = now
