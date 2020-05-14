@@ -18,7 +18,9 @@ type
     lastProgress: seq[int]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
 
-let fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
+let
+  fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
+  prefixes = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
 
 proc numDigits(n: int): int =
   var
@@ -40,9 +42,14 @@ proc incMagnitude(n: float, magnitude: int): (float, int) =
 proc highestMagnitude(n: float): (float, int) =
   result = (n, 0)
   var new = incMagnitude(result[0], result[1])
-  while result != new:
+  while result != new and new[1] <= prefixes.high:
     result = new
     new = incMagnitude(result[0], result[1])
+
+proc formatUnit(n: float): string =
+  let nMag = highestMagnitude(n)
+  nMag[0].formatFloat(ffDecimal, 2) & prefixes[nMag[1]]
+
 
 proc formatTime(secs: SomeFloat): string =
   if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
@@ -146,7 +153,7 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
 
   result = bar.barStr[index] &
     " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " &
-    (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatFloat(ffDecimal, 2)) &
+    (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatUnit) &
     "/sec]"
 
   when defined(suruDebug):
