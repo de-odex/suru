@@ -20,6 +20,45 @@ type
 
 let fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 
+proc numDigits(n: int): int =
+  var
+    n = n
+  result = 1
+  if (n < 0):
+    n = if (n == int.low): int.high else: -n
+  while (n > 9):
+    n = n div 10
+    inc result
+
+proc incMagnitude(n: float, magnitude: int): (float, int) =
+  let digits = n.int.numDigits
+  if digits > 3:
+    result = (n / 1000, magnitude + 1)
+  else:
+    result = (n, magnitude)
+
+proc highestMagnitude(n: float): (float, int) =
+  result = (n, 0)
+  var new = incMagnitude(result[0], result[1])
+  while result != new:
+    result = new
+    new = incMagnitude(result[0], result[1])
+
+proc formatTime(secs: SomeFloat): string =
+  if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
+    # if time is abnormal, output ??
+    "??s"
+  elif secs < 0:
+    # cheat bad float subtraction by clipping anything under 0 to 0
+    "0.0s"
+  elif secs <= 180:
+    # under three minutes, just render as seconds
+    secs.formatFloat(ffDecimal, 1) & "s"
+  else:
+    # use minute format
+    let secs = round(secs).int
+    align($(secs div 60), 2, '0') & ":" & align($(secs mod 60), 2, '0')
+
 #
 
 proc push(mv: var ExpMovingAverager, value: int) =
@@ -94,20 +133,6 @@ proc inc*(bar: var SuruBar, index: int = 0) =
   bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
   bar.lastProgress[index] = bar.progress[index]
 
-proc formatTime(secs: SomeFloat): string =
-  if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
-    # if time is abnormal, output ??
-    "??s"
-  elif secs < 0:
-    # cheat bad float subtraction by clipping anything under 0 to 0
-    "0.0s"
-  elif secs <= 180:
-    # under three minutes, just render as seconds
-    secs.formatFloat(ffDecimal, 1) & "s"
-  else:
-    # use minute format
-    let secs = round(secs).int
-    align($(secs div 60), 2, '0') & ":" & align($(secs mod 60), 2, '0')
 
 proc `$`*(bar: SuruBar, index: int = 0): string =
   let
