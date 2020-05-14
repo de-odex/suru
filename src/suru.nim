@@ -295,17 +295,13 @@ when isMainModule:
       sleep(1000)
 
   test "alternate long time test":
-    sleep 1000
     var bar: SuruBar = initSuruBar(25)
-
     bar.start(4)
-
     for a in 1..1000:
-      sleep 4
+      sleep 5
       if a mod 250 == 0:
         inc bar
       bar.update(50_000_000)
-
     bar.finish()
 
   test "constant time test":
@@ -350,4 +346,22 @@ when isMainModule:
         bar.update(50_000_000)
         bar.update(50_000_000, 1)
       inc bar
+    bar.finish()
+
+  test "frame time test": # use -d:suruDebug to see frame time
+    var bar: SuruBar = initSuruBar(25)
+    bar.start(10000)
+    for a in 1..10000:
+      sleep 1
+      inc bar
+      bar.update(100_000)
+    bar.finish()
+
+  test "multi-bar frame time test":
+    var bar: SuruBar = initSuruBar((25, 30))
+    bar.start((10000, 30))
+    for a in 1..10000:
+      # sleep 1
+      incAll bar
+      bar.updateAll(100_000)
     bar.finish()
