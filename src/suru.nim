@@ -97,8 +97,8 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     lastProgress: zeroes,
   )
 
-# proc initSuruBar*(length: int = 25): SuruBar =
-#   initSuruBar(length)
+proc initSuruBar*(lengthsAndAmounts: varargs[(int, int)]): SuruBar =
+  initSuruBar((@lengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
 
 proc len(bar: SuruBar): int =
   bar.length.len
@@ -133,6 +133,10 @@ proc inc*(bar: var SuruBar, index: int = 0) =
   bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
   bar.lastProgress[index] = bar.progress[index]
 
+
+proc incAll*(bar: var SuruBar) =
+  for index in bar:
+    inc bar, index
 
 proc `$`*(bar: SuruBar, index: int = 0): string =
   let
@@ -201,6 +205,9 @@ proc start*(bar: var SuruBar, iterableLengths: varargs[int]) =
     bar.progressStat[index].push 0
     bar.show(index)
 
+proc start*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) =
+  bar.start((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
+
 proc update*(bar: var SuruBar, delay: int, index: int = 0) =
   let
     newTime = getMonoTime()
@@ -209,6 +216,10 @@ proc update*(bar: var SuruBar, delay: int, index: int = 0) =
     bar.currentAccess[index] = newTime
     bar.show(index)
     bar.lastAccess[index] = newTime
+
+proc updateAll*(bar: var SuruBar, delay: int) =
+  for index in bar:
+    bar.update(delay, index)
 
 proc finish(bar: var SuruBar) =
   for index in bar:
