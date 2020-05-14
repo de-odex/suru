@@ -22,19 +22,8 @@ let
   fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
   prefixes = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
 
-proc numDigits(n: int): int =
-  var
-    n = n
-  result = 1
-  if (n < 0):
-    n = if (n == int.low): int.high else: -n
-  while (n > 9):
-    n = n div 10
-    inc result
-
 proc incMagnitude(n: float, magnitude: int): (float, int) =
-  let digits = n.int.numDigits
-  if digits > 3:
+  if n > 1000:
     result = (n / 1000, magnitude + 1)
   else:
     result = (n, magnitude)
