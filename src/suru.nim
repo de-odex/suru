@@ -118,11 +118,10 @@ proc inc*(bar: var SuruBar, index: int = 0) =
     totalStr = $bar.total[index]
 
   # TODO: improve the algorithm
-  if shaded < bar.length[index] and bar.barStr[index].runeAtPos(shaded) != (if fractionals[fractional] == "": " ".toRunes[0] else: fractionals[fractional].toRunes[0]):
+  if shaded < bar.length[index]:
     bar.barStr[index] = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
   elif shaded == bar.length[index]:
     bar.barStr[index] = "█".repeat(shaded)
-  # bar.barStr[index] = $fractional
   bar.barStr[index] = (percentage*100).formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
     bar.barStr[index] & "| " &
     ($bar.progress[index]).align(totalStr.len, ' ') & "/" & totalStr
