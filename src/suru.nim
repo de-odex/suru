@@ -39,7 +39,6 @@ proc formatUnit(n: float): string =
   let nMag = highestMagnitude(n)
   nMag[0].formatFloat(ffDecimal, 2) & prefixes[nMag[1]]
 
-
 proc formatTime(secs: SomeFloat): string =
   if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
     # if time is abnormal, output ??
