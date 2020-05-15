@@ -67,7 +67,7 @@ proc push(mv: var ExpMovingAverager, value: int) =
 
 proc initSuruBar*(lengths: varargs[int]): SuruBar =
   ## Creates a SuruBar with the given lengths
-  ## Does not prime the bar for a loop, use initPreLoop for that
+  ## Does not prime the bar for a loop, use ``setup`` for that
   let lengths = if lengths.len == 0:
     @[25]
   else:
