@@ -176,7 +176,7 @@ proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   bar.lastAccess[index] = now
   bar.lastProgress[index] = 0
 
-proc start*(bar: var SuruBar, iterableLengths: varargs[int]) =
+proc setup*(bar: var SuruBar, iterableLengths: varargs[int]) =
   doAssert iterableLengths.len == bar.len
 
   for index in 1..<iterableLengths.len:
@@ -198,8 +198,14 @@ proc start*(bar: var SuruBar, iterableLengths: varargs[int]) =
     bar.progressStat[index].push 0
     bar.show(index)
 
-proc start*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) =
-  bar.start((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
+proc setup*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) =
+  bar.setup((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
+
+proc start*(bar: var SuruBar, iterableLengths: varargs[int]) {.deprecated: "Deprecated, use ``setup``".} =
+  bar.setup(iterableLengths)
+
+proc start*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) {.deprecated: "Deprecated, use ``setup``".} =
+  bar.setup(iterableLengthsAndAmounts)
 
 proc update*(bar: var SuruBar, delay: int, index: int = 0) =
   let
@@ -214,7 +220,7 @@ proc updateAll*(bar: var SuruBar, delay: int) =
   for index in bar:
     bar.update(delay, index)
 
-proc finish(bar: var SuruBar) =
+proc finish*(bar: var SuruBar) =
   for index in bar:
     bar.show(index)
   echo ""
@@ -248,7 +254,7 @@ macro suru*(x: ForLoopStmt): untyped =
       `bar`: SuruBar = initSuruBar()
       `toIterate` = `a`
 
-    `bar`.start(len(`toIterate`))
+    `bar`.setup(len(`toIterate`))
 
   var body = x[^1]
   # makes body a statement list to be able to add statements
@@ -291,7 +297,7 @@ when isMainModule:
 
   test "alternate long time test":
     var bar: SuruBar = initSuruBar(25)
-    bar.start(4)
+    bar.setup(4)
     for a in 1..1000:
       sleep 5
       if a mod 250 == 0:
@@ -319,7 +325,7 @@ when isMainModule:
     echo "check if this line is removed by the bars"
     sleep 1000
     var bar: SuruBar = initSuruBar(25, 25)
-    bar.start(1000, 40)
+    bar.setup(1000, 40)
     for a in 1..1000:
       sleep 25
       inc bar
@@ -332,7 +338,7 @@ when isMainModule:
 
   test "iterative bar test":
     var bar: SuruBar = initSuruBar(25, 25)
-    bar.start(10, 100)
+    bar.setup(10, 100)
     for a in 1..10:
       bar.reset(1, a*10)
       for b in 1..a*10:
@@ -345,7 +351,7 @@ when isMainModule:
 
   test "frame time test": # use -d:suruDebug to see frame time
     var bar: SuruBar = initSuruBar(25)
-    bar.start(10000)
+    bar.setup(10000)
     for a in 1..10000:
       sleep 1
       inc bar
