@@ -18,6 +18,12 @@ type
     lastProgress: seq[int]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
 
+    setupOutputImpl*: proc(bar: var SuruBar)
+    resetOutputImpl*: proc(bar: var SuruBar, index: int)
+    incOutputImpl*: proc(bar: var SuruBar, index: int)
+    updateOutputImpl*: proc(bar: var SuruBar, index: int)
+    finishOutputImpl*: proc(bar: var SuruBar)
+
 let
   fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
   prefixes = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
@@ -36,8 +42,13 @@ proc highestMagnitude(n: float): (float, int) =
     new = incMagnitude(result[0], result[1])
 
 proc formatUnit(n: float): string =
-  let nMag = highestMagnitude(n)
-  nMag[0].formatFloat(ffDecimal, 2) & prefixes[nMag[1]]
+  if n.classify notin {fcNormal, fcSubnormal, fcZero}:
+    return static: "??".align(9, ' ')
+  let (n, mag) = highestMagnitude(n)
+  if n < 1_000:
+    result = (n.formatFloat(ffDecimal, 2) & prefixes[mag]).align(9, ' ')
+  else:
+    result = static: ">1000.00Y".align(9, ' ')
 
 proc formatTime(secs: SomeFloat): string =
   if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
@@ -65,6 +76,84 @@ proc push(mv: var ExpMovingAverager, value: int) =
 
 #
 
+proc len*(bar: SuruBar): int =
+  bar.length.len
+
+iterator items*(bar: SuruBar): int =
+  for item in 0..<bar.length.len:
+    yield item
+
+proc `$`*(bar: SuruBar, index: int = 0): string =
+  let
+    perSec = bar.progressStat[index].mean * (1000/bar.timeStat[index].mean)
+    timeElapsed = (bar.currentAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
+    timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
+      ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
+
+  result = bar.barStr[index] & " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " & perSec.formatUnit & "/sec]"
+
+  when defined(suruDebug):
+    result &= " " & ((getMonoTime().ticks - bar.lastAccess[index].ticks).float/1_000_000).formatFloat(ffDecimal, 2) & "ms/frame"
+
+proc defaultSetupOutputImpl(bar: var SuruBar) =
+  bar.barStr = zip(bar.length, bar.total).mapIt(
+    0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(it[0]) & "| " &
+    "0".align(($it[1]).len, ' ') & "/" & ($it[1])
+  )
+
+  if not stdout.isatty:
+    return
+
+  for index in 1..<bar.len:
+    echo ""
+  if bar.len > 1:
+    stdout.cursorUp(bar.len - 1)
+
+proc defaultResetOutputImpl(bar: var Surubar, index: int) =
+  bar.barStr[index] = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+    " ".repeat(bar.length[index]) & "| " & "0".align(($bar.total[index]).len, ' ') &
+    "/" & ($bar.total[index])
+
+proc defaultUpdateOutputImpl(bar: var SuruBar, index: int) =
+  if not stdout.isatty:
+    return
+
+  let difference = index - bar.currentIndex
+  if difference < 0:
+    stdout.cursorUp(abs(difference))
+  elif difference > 0:
+    stdout.cursorDown(abs(difference))
+  bar.currentIndex = index
+  stdout.eraseLine
+  stdout.write `$`(bar, index)
+  stdout.flushFile
+  stdout.setCursorXPos 0
+
+proc defaultIncOutputImpl(bar: var SuruBar, index: int) =
+  let
+    percentage = bar.progress[index] / bar.total[index]
+    shaded = floor(percentage * bar.length[index].float).int
+    fractional = (percentage * bar.length[index].float * 8).int mod 8
+    unshaded = bar.length[index] - shaded - (if fractional == 0: 0 else: 1)
+    totalStr = $bar.total[index]
+
+  # TODO: improve the algorithm
+  if shaded < bar.length[index]:
+    bar.barStr[index] = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
+  elif shaded == bar.length[index]:
+    bar.barStr[index] = "█".repeat(shaded)
+  bar.barStr[index] = (percentage*100).formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+    bar.barStr[index] & "| " &
+    ($bar.progress[index]).align(totalStr.len, ' ') & "/" & totalStr
+
+proc defualtFinishOutputImpl(bar: var SuruBar) =
+  if not stdout.isatty:
+    return
+
+  for index in bar:
+    bar.updateOutputImpl(bar, index)
+  echo ""
+
 proc initSuruBar*(lengths: varargs[int]): SuruBar =
   ## Creates a SuruBar with the given lengths
   ## Does not prime the bar for a loop, use ``setup`` for that
@@ -90,36 +179,22 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     currentAccess: monotimes,
     lastAccess: monotimes,
     lastProgress: zeroes,
+
+    setupOutputImpl: defaultSetupOutputImpl,
+    resetOutputImpl: defaultResetOutputImpl,
+    updateOutputImpl: defaultUpdateOutputImpl,
+    incOutputImpl: defaultIncOutputImpl,
+    finishOutputImpl: defualtFinishOutputImpl
   )
 
 proc initSuruBar*(lengthsAndAmounts: varargs[(int, int)]): SuruBar =
   initSuruBar((@lengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
 
-proc len(bar: SuruBar): int =
-  bar.length.len
-
-iterator items(bar: SuruBar): int =
-  for item in 0..<bar.length.len:
-    yield item
-
 proc inc*(bar: var SuruBar, index: int = 0) =
   ## Increments the bar progress
   inc bar.progress[index]
-  let
-    percentage = bar.progress[index] / bar.total[index]
-    shaded = floor(percentage * bar.length[index].float).int
-    fractional = (percentage * bar.length[index].float * 8).int mod 8
-    unshaded = bar.length[index] - shaded - (if fractional == 0: 0 else: 1)
-    totalStr = $bar.total[index]
 
-  # TODO: improve the algorithm
-  if shaded < bar.length[index]:
-    bar.barStr[index] = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
-  elif shaded == bar.length[index]:
-    bar.barStr[index] = "█".repeat(shaded)
-  bar.barStr[index] = (percentage*100).formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
-    bar.barStr[index] & "| " &
-    ($bar.progress[index]).align(totalStr.len, ' ') & "/" & totalStr
+  bar.incOutputImpl(bar, index)
 
   let newTime = getMonoTime()
   bar.timeStat[index].push (newTime.ticks - bar.lastIncrement[index].ticks).int div 1_000_000
@@ -127,47 +202,15 @@ proc inc*(bar: var SuruBar, index: int = 0) =
   bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
   bar.lastProgress[index] = bar.progress[index]
 
-
 proc incAll*(bar: var SuruBar) =
   for index in bar:
     inc bar, index
-
-proc `$`*(bar: SuruBar, index: int = 0): string =
-  let
-    perSec = bar.progressStat[index].mean * (1000/bar.timeStat[index].mean)
-    timeElapsed = (bar.currentAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
-    timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
-      ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
-
-  result = bar.barStr[index] &
-    " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " &
-    (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatUnit) &
-    "/sec]"
-
-  when defined(suruDebug):
-    result &= " " & ((getMonoTime().ticks - bar.lastAccess[index].ticks).float/1_000_000).formatFloat(ffDecimal, 2) & "ms/frame"
-
-proc show*(bar: var SuruBar, index: int = 0) =
-  ## Shows the bar in a formatted style.
-  let difference = index - bar.currentIndex
-  if difference < 0:
-    stdout.cursorUp(abs(difference))
-  elif difference > 0:
-    stdout.cursorDown(abs(difference))
-  bar.currentIndex = index
-  stdout.eraseLine
-  stdout.write `$`(bar, index)
-  stdout.flushFile
-  stdout.setCursorXPos 0
 
 proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   ## Resets the bar to an empty bar, not including its length and total.
   let now = getMonoTime()
   bar.progress[index] = 0
   bar.total[index] = iterableLength
-  bar.barStr[index] = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
-    " ".repeat(bar.length[index]) & "| " & "0".align(($bar.total[index]).len, ' ') &
-    "/" & ($bar.total[index])
   bar.progressStat[index] = ExpMovingAverager()
   bar.timeStat[index] = ExpMovingAverager()
   bar.startTime[index] = now
@@ -176,27 +219,24 @@ proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   bar.lastAccess[index] = now
   bar.lastProgress[index] = 0
 
+  bar.resetOutputImpl(bar, index)
+
 proc setup*(bar: var SuruBar, iterableLengths: varargs[int]) =
   doAssert iterableLengths.len == bar.len
 
-  for index in 1..<iterableLengths.len:
-    echo ""
-  if iterableLengths.len > 1:
-    stdout.cursorUp(iterableLengths.len - 1)
-
   bar.total = @iterableLengths
-  bar.barStr = zip(bar.length, bar.total).mapIt(
-    0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(it[0]) & "| " &
-    "0".align(($it[1]).len, ' ') & "/" & ($it[1])
-  )
   bar.startTime = getMonoTime().repeat(iterableLengths.len)
   bar.currentAccess = bar.startTime
   bar.lastAccess = bar.startTime
   bar.lastIncrement = bar.startTime
+
+  bar.setupOutputImpl(bar)
+
   for index in 0..<iterableLengths.len:
     bar.timeStat[index].push 0
     bar.progressStat[index].push 0
-    bar.show(index)
+
+    bar.updateOutputImpl(bar, index)
 
 proc setup*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) =
   bar.setup((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
@@ -213,7 +253,7 @@ proc update*(bar: var SuruBar, delay: int, index: int = 0) =
     difference = newTime.ticks - bar.lastAccess[index].ticks # in nanoseconds
   if difference > delay: # in nanoseconds
     bar.currentAccess[index] = newTime
-    bar.show(index)
+    bar.updateOutputImpl(bar, index)
     bar.lastAccess[index] = newTime
 
 proc updateAll*(bar: var SuruBar, delay: int) =
@@ -221,9 +261,7 @@ proc updateAll*(bar: var SuruBar, delay: int) =
     bar.update(delay, index)
 
 proc finish*(bar: var SuruBar) =
-  for index in bar:
-    bar.show(index)
-  echo ""
+  bar.finishOutputImpl(bar)
 
 #
 
