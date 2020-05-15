@@ -351,18 +351,18 @@ when isMainModule:
 
   test "frame time test": # use -d:suruDebug to see frame time
     var bar: SuruBar = initSuruBar(25)
-    bar.setup(10000)
-    for a in 1..10000:
-      sleep 1
+    bar.setup(10_000_000)
+    for a in 1..10_000_000:
+      # sleep 1
       inc bar
-      bar.update(100_000)
+      bar.update(1_000)
     bar.finish()
 
   test "multi-bar frame time test":
     var bar: SuruBar = initSuruBar((25, 30))
-    bar.start((10000, 30))
-    for a in 1..10000:
+    bar.setup((10_000, 30))
+    for a in 1..10_000:
       # sleep 1
       incAll bar
-      bar.updateAll(100_000)
+      bar.updateAll(1_000)
     bar.finish()
