@@ -88,7 +88,7 @@ import suru
 var bar: SuruBar = initSuruBar()
 # pass in a positive integer if you want to change the bar length
 
-bar.start(3) # the length of the iterable
+bar.setup(3) # the length of the iterable
              # or how many iterations will happen
              # pass 0 for an unknown length
 
@@ -101,6 +101,18 @@ for a in [20, 90, 120]:
 
 bar.finish()
 ```
+
+Major To-do
+-----------
+the order bears no meaning
+
+- [ ] thread-safe
+- [x] multi-bar support
+- [ ] formatting support
+  - [ ] ascii-only version
+  - [ ] custom text
+- [ ] stable api
+- [ ] iterator support
 
 Dependencies
 ------------
