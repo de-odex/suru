@@ -20,7 +20,7 @@ type
 
 let
   fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
-  prefixes = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
+  prefixes = ["", "k", "M", "G", "T", "P", "E", "Z"] # Y is omitted, max is 1Y
 
 proc incMagnitude(n: float, magnitude: int): (float, int) =
   if n > 1000:
@@ -35,24 +35,29 @@ proc highestMagnitude(n: float): (float, int) =
     result = new
     new = incMagnitude(result[0], result[1])
 
-proc formatUnit(n: float): string =
-  let nMag = highestMagnitude(n)
-  nMag[0].formatFloat(ffDecimal, 2) & prefixes[nMag[1]]
+proc formatUnit*(n: float): string =
+  if n.classify notin {fcNormal, fcSubnormal, fcZero}:
+    return static: "??".align(6, ' ')
+  let (n, mag) = highestMagnitude(n)
+  if n < 1_000:
+    result = (n.formatFloat(ffDecimal, 2) & prefixes[mag]).align(6, ' ')
+  else:
+    result = static: ">1.00Y".align(6, ' ')
 
 proc formatTime(secs: SomeFloat): string =
   if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
     # if time is abnormal, output ??
-    "??s"
+    result = "  ??s"
   elif secs < 0:
     # cheat bad float subtraction by clipping anything under 0 to 0
-    "0.0s"
-  elif secs <= 180:
-    # under three minutes, just render as seconds
-    secs.formatFloat(ffDecimal, 1) & "s"
+    result = " 0.0s"
+  elif secs <= 100:
+    # under a minute and 40 seconds, just render as seconds
+    result = (secs.formatFloat(ffDecimal, 1) & "s").align(5, ' ')
   else:
     # use minute format
-    let secs = round(secs).int
-    align($(secs div 60), 2, '0') & ":" & align($(secs mod 60), 2, '0')
+    let secs = secs.int
+    result = ($(secs div 60)).align(2, '0') & ":" & ($(secs mod 60)).align(2, '0')
 
 #
 
@@ -140,9 +145,7 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
       ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
 
   result = bar.barStr[index] &
-    " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " &
-    (if perSec.classify notin {fcNormal, fcSubnormal, fcZero}: "??" else: perSec.formatUnit) &
-    "/sec]"
+    " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " & perSec.formatUnit & "/sec]"
 
   when defined(suruDebug):
     result &= " " & ((getMonoTime().ticks - bar.lastAccess[index].ticks).float/1_000_000).formatFloat(ffDecimal, 2) & "ms/frame"
