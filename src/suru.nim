@@ -2,8 +2,7 @@ import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode
 {.experimental: "forLoopMacros".}
 
 type
-  ExpMovingAverager = object
-    mean: float
+  ExpMovingAverager = distinct float
   SuruBar* = object
     length: seq[int]
     progress: seq[int]
@@ -61,12 +60,16 @@ proc formatTime(secs: SomeFloat): string =
 
 #
 
-proc push(mv: var ExpMovingAverager, value: int) =
-  let valFloat = value.float
-  if mv.mean == 0:
-    mv.mean = valFloat
+const alpha = exp(-1/5)
+
+proc push(mv: var ExpMovingAverager, value: float) =
+  if mv.float == 0:
+    mv = value.ExpMovingAverager
   else:
-    mv.mean = valFloat + exp(-1/5) * (mv.mean - valFloat)
+    mv = (value + alpha * (mv.float - value)).ExpMovingAverager
+
+proc push(mv: var ExpMovingAverager, value: int) =
+  mv.push(value.float)
 
 #
 
@@ -79,7 +82,7 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     @lengths
   let
     zeroes = 0.repeat(lengths.len)
-    averagers = ExpMovingAverager().repeat(lengths.len)
+    averagers = 0.ExpMovingAverager.repeat(lengths.len)
     monotimes = MonoTime().repeat(lengths.len)
   SuruBar(
     length: lengths,
@@ -132,14 +135,13 @@ proc inc*(bar: var SuruBar, index: int = 0) =
   bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
   bar.lastProgress[index] = bar.progress[index]
 
-
 proc incAll*(bar: var SuruBar) =
   for index in bar:
     inc bar, index
 
 proc `$`*(bar: SuruBar, index: int = 0): string =
   let
-    perSec = bar.progressStat[index].mean * (1000/bar.timeStat[index].mean)
+    perSec = bar.progressStat[index].float * (1000/bar.timeStat[index].float)
     timeElapsed = (bar.currentAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
     timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
       ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
@@ -171,8 +173,8 @@ proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   bar.barStr[index] = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
     " ".repeat(bar.length[index]) & "| " & "0".align(($bar.total[index]).len, ' ') &
     "/" & ($bar.total[index])
-  bar.progressStat[index] = ExpMovingAverager()
-  bar.timeStat[index] = ExpMovingAverager()
+  bar.progressStat[index] = 0.ExpMovingAverager
+  bar.timeStat[index] = 0.ExpMovingAverager
   bar.startTime[index] = now
   bar.lastIncrement[index] = now
   bar.currentAccess[index] = now
