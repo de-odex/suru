@@ -188,6 +188,8 @@ proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   bar.lastProgress[index] = 0
 
 proc setup*(bar: var SuruBar, iterableLengths: varargs[int]) =
+
+  # sets certain fields more properly now that the iterable length is known
   doAssert iterableLengths.len == bar.len
 
   for index in 1..<iterableLengths.len:
