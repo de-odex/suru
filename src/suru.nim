@@ -35,13 +35,19 @@ proc highestMagnitude(n: float): (float, int) =
     new = incMagnitude(result[0], result[1])
 
 proc formatUnit*(n: float): string =
-  if n.classify notin {fcNormal, fcSubnormal, fcZero}:
+  case n.classify
+  of fcNan:
     return static: "??".align(6, ' ')
-  let (n, mag) = highestMagnitude(n)
-  if n < 1_000:
-    result = (n.formatFloat(ffDecimal, 2) & prefixes[mag]).align(6, ' ')
-  else:
+  of {fcNormal, fcSubnormal, fcZero, fcNegZero}:
+    let (n, mag) = highestMagnitude(n)
+    if n < 1_000:
+      result = (n.formatFloat(ffDecimal, 2) & prefixes[mag]).align(6, ' ')
+    else:
+      result = static: ">1.00Y".align(6, ' ')
+  of fcInf:
     result = static: ">1.00Y".align(6, ' ')
+  of fcNegInf:
+    result = static: "0.00".align(6, ' ')
 
 proc formatTime(secs: SomeFloat): string =
   if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
