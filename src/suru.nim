@@ -220,16 +220,16 @@ proc start*(bar: var SuruBar, iterableLengths: varargs[int]) {.deprecated: "Depr
 proc start*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) {.deprecated: "Deprecated, use ``setup``".} =
   bar.setup(iterableLengthsAndAmounts)
 
-proc update*(bar: var SuruBar, delay: int, index: int = 0) =
+proc update*(bar: var SuruBar, delay: int = 8_000_000, index: int = 0) =
   let
     newTime = getMonoTime()
     difference = newTime.ticks - bar.lastAccess[index].ticks # in nanoseconds
-  if difference > delay: # in nanoseconds
+  if difference > max(delay, 1_000_000): # in nanoseconds
     bar.currentAccess[index] = newTime
     bar.show(index)
     bar.lastAccess[index] = newTime
 
-proc updateAll*(bar: var SuruBar, delay: int) =
+proc updateAll*(bar: var SuruBar, delay: int = 8_000_000) =
   for index in bar:
     bar.update(delay, index)
 
