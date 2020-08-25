@@ -156,7 +156,7 @@ proc `$`*(bar: SuruBar, index: int = 0): string =
     " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " & perSec.formatUnit & "/sec]"
 
   when defined(suruDebug):
-    result &= " " & ((getMonoTime().ticks - bar.lastAccess[index].ticks).float/1_000_000).formatFloat(ffDecimal, 2) & "ms/frame"
+    result &= " " & ((getMonoTime().ticks - bar.currentAccess[index].ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
 
 proc show*(bar: var SuruBar, index: int = 0) =
   ## Shows the bar in a formatted style.
@@ -362,7 +362,7 @@ when isMainModule:
       inc bar
     bar.finish()
 
-  test "frame time test": # use -d:suruDebug to see frame time
+  test "overhead test": # use -d:suruDebug to see overhead
     var bar: SuruBar = initSuruBar(25)
     bar.setup(10_000_000)
     for a in 1..10_000_000:
