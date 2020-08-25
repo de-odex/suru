@@ -166,10 +166,13 @@ proc show*(bar: var SuruBar, index: int = 0) =
   elif difference > 0:
     stdout.cursorDown(abs(difference))
   bar.currentIndex = index
-  stdout.eraseLine
-  stdout.write `$`(bar, index)
-  stdout.flushFile
-  stdout.setCursorXPos 0
+  when defined(windows):
+    stdout.eraseLine()
+    stdout.write(`$`(bar, index))
+  else:
+    stdout.write("\e[2K", `$`(bar, index))
+  stdout.flushFile()
+  stdout.setCursorXPos(0)
 
 proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
   ## Resets the bar to an empty bar, not including its length and total.
