@@ -1,4 +1,4 @@
-import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode
+import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode, strformat
 {.experimental: "forLoopMacros".}
 
 type
@@ -87,7 +87,7 @@ proc initSingleSuruBar*(length: int): SingleSuruBar =
     length: length,
     #progress: 0,
       #total: 0,
-    barStr: 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(length) & "| " & "0/0",
+    barStr: &"{0:>3}%|" & " ".repeat(length) & "| " & "0/0",
     #progressStat: 0.ExpMovingAverager,
     #timeStat: 0.ExpMovingAverager,
     #startTime: MonoTime(),
@@ -149,7 +149,7 @@ proc inc*(bar: var SingleSuruBar) =
     bar.barStr = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
   elif shaded == bar.length:
     bar.barStr = "█".repeat(shaded)
-  bar.barStr = (percentage*100).formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+  bar.barStr = &"{(percentage*100).round.int:>3}%|" &
     bar.barStr & "| " &
     ($bar.progress).align(totalStr.len, ' ') & "/" & totalStr
 
@@ -203,7 +203,7 @@ proc reset*(bar: var SingleSuruBar, iterableLength: int) =
   let now = getMonoTime()
   bar.progress = 0
   bar.total = iterableLength
-  bar.barStr = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+  bar.barStr = &"{0:>3}%|" &
     " ".repeat(bar.length) & "| " & "0".align(($bar.total).len, ' ') &
     "/" & ($bar.total)
   bar.progressStat = 0.ExpMovingAverager
@@ -225,7 +225,7 @@ proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
 
   for index, iterableLength in iterableLengths:
     sb[index].total = iterableLength
-    sb[index].barStr = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(sb[index].length) & "| " & "0".align(($sb[index].total).len, ' ') & "/" & $sb[index].total
+    sb[index].barStr = &"{0:>3}" & "%|" & " ".repeat(sb[index].length) & "| " & "0".align(($sb[index].total).len, ' ') & "/" & $sb[index].total
     sb[index].startTime = getMonoTime()
     sb[index].currentAccess = sb[index].startTime
     sb[index].lastAccess = sb[index].startTime
