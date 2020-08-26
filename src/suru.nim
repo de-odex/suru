@@ -3,18 +3,20 @@ import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode
 
 type
   ExpMovingAverager = distinct float
+  SingleSuruBar* = object
+    length: int
+    progress: int
+    total: int
+    barStr: string
+    progressStat: ExpMovingAverager
+    timeStat: ExpMovingAverager
+    startTime: MonoTime
+    lastIncrement: MonoTime
+    currentAccess: MonoTime
+    lastAccess: MonoTime
+    lastProgress: int
   SuruBar* = object
-    length: seq[int]
-    progress: seq[int]
-    total: seq[int]
-    barStr: seq[string]
-    progressStat: seq[ExpMovingAverager]
-    timeStat: seq[ExpMovingAverager]
-    startTime: seq[MonoTime]
-    lastIncrement: seq[MonoTime]
-    currentAccess: seq[MonoTime]
-    lastAccess: seq[MonoTime]
-    lastProgress: seq[int]
+    bars: seq[SingleSuruBar]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
 
 let
@@ -79,6 +81,22 @@ proc push(mv: var ExpMovingAverager, value: int) =
 
 #
 
+proc initSingleSuruBar*(length: int): SingleSuruBar =
+  let length = if length == 0: 25 else: length
+  SingleSuruBar(
+    length: length,
+    #progress: 0,
+      #total: 0,
+    barStr: 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(length) & "| " & "0/0",
+    #progressStat: 0.ExpMovingAverager,
+    #timeStat: 0.ExpMovingAverager,
+    #startTime: MonoTime(),
+    #lastIncrement: MonoTime(),
+    #currentAccess: MonoTime(),
+    #lastAccess: MonoTime(),
+    #lastProgress: 0,
+  )
+
 proc initSuruBar*(lengths: varargs[int]): SuruBar =
   ## Creates a SuruBar with the given lengths
   ## Does not prime the bar for a loop, use ``setup`` for that
@@ -86,159 +104,164 @@ proc initSuruBar*(lengths: varargs[int]): SuruBar =
     @[25]
   else:
     @lengths
-  let
-    zeroes = 0.repeat(lengths.len)
-    averagers = 0.ExpMovingAverager.repeat(lengths.len)
-    monotimes = MonoTime().repeat(lengths.len)
   SuruBar(
-    length: lengths,
-    progress: zeroes,
-    total: zeroes,
-    barStr: lengths.mapIt(
-      0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(it) & "| " & "0/0"
-    ),
-    progressStat: averagers,
-    timeStat: averagers,
-    startTime: monotimes,
-    lastIncrement: monotimes,
-    currentAccess: monotimes,
-    lastAccess: monotimes,
-    lastProgress: zeroes,
+    bars: lengths.mapIt(initSingleSuruBar(it))
   )
 
 proc initSuruBar*(lengthsAndAmounts: varargs[(int, int)]): SuruBar =
+  # [(5, 2), (7, 4)] becomes [5, 5, 7, 7, 7, 7]
   initSuruBar((@lengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
 
-proc len(bar: SuruBar): int =
-  bar.length.len
+iterator items*(sb: SuruBar): SingleSuruBar =
+  for bar in sb.bars:
+    yield bar
 
-iterator items(bar: SuruBar): int =
-  for item in 0..<bar.length.len:
-    yield item
+iterator mitems*(sb: var SuruBar): var SingleSuruBar =
+  var index: int
+  while index < sb.bars.len:
+    yield sb.bars[index]
+    inc(index)
 
-proc inc*(bar: var SuruBar, index: int = 0) =
+iterator pairs*(sb: var SuruBar): (int, SingleSuruBar) =
+  var index: int
+  while index < sb.bars.len:
+    yield (index, sb.bars[index])
+    inc(index)
+
+proc `[]`*(bar: SuruBar, index: Natural): SingleSuruBar =
+  bar.bars[index]
+
+proc `[]`*(bar: var SuruBar, index: Natural): var SingleSuruBar =
+  bar.bars[index]
+
+proc inc*(bar: var SingleSuruBar) =
   ## Increments the bar progress
-  inc bar.progress[index]
+  inc bar.progress
   let
-    percentage = bar.progress[index] / bar.total[index]
-    shaded = floor(percentage * bar.length[index].float).int
-    fractional = (percentage * bar.length[index].float * 8).int mod 8
-    unshaded = bar.length[index] - shaded - (if fractional == 0: 0 else: 1)
-    totalStr = $bar.total[index]
+    percentage = bar.progress / bar.total
+    shaded = floor(percentage * bar.length.float).int
+    fractional = (percentage * bar.length.float * 8).int mod 8
+    unshaded = bar.length - shaded - (if fractional == 0: 0 else: 1)
+    totalStr = $bar.total
 
   # TODO: improve the algorithm
-  if shaded < bar.length[index]:
-    bar.barStr[index] = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
-  elif shaded == bar.length[index]:
-    bar.barStr[index] = "█".repeat(shaded)
-  bar.barStr[index] = (percentage*100).formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
-    bar.barStr[index] & "| " &
-    ($bar.progress[index]).align(totalStr.len, ' ') & "/" & totalStr
+  if shaded < bar.length:
+    bar.barStr = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
+  elif shaded == bar.length:
+    bar.barStr = "█".repeat(shaded)
+  bar.barStr = (percentage*100).formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+    bar.barStr & "| " &
+    ($bar.progress).align(totalStr.len, ' ') & "/" & totalStr
 
   let newTime = getMonoTime()
-  bar.timeStat[index].push (newTime.ticks - bar.lastIncrement[index].ticks).int div 1_000_000
-  bar.lastIncrement[index] = newTime
-  bar.progressStat[index].push bar.progress[index] - bar.lastProgress[index]
-  bar.lastProgress[index] = bar.progress[index]
+  bar.timeStat.push (newTime.ticks - bar.lastIncrement.ticks).int div 1_000_000
+  bar.lastIncrement = newTime
+  bar.progressStat.push bar.progress - bar.lastProgress
+  bar.lastProgress = bar.progress
 
-proc incAll*(bar: var SuruBar) =
-  for index in bar:
-    inc bar, index
+proc inc*(sb: var SuruBar) =
+  ## Increments the bar progress
+  inc sb[0]
 
-proc `$`*(bar: SuruBar, index: int = 0): string =
+proc incAll*(sb: var SuruBar) =
+  for bar in sb.mitems:
+    inc bar
+
+proc `$`*(bar: SingleSuruBar): string =
   let
-    perSec = bar.progressStat[index].float * (1000/bar.timeStat[index].float)
-    timeElapsed = (bar.currentAccess[index].ticks - bar.startTime[index].ticks).float / 1_000_000_000
-    timeLeft = (bar.total[index] - bar.progress[index]).float / perSec -
-      ((getMonoTime().ticks - bar.lastIncrement[index].ticks).float / 1_000_000_000)
+    perSec = bar.progressStat.float * (1000/bar.timeStat.float)
+    timeElapsed = (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
+    timeLeft = (bar.total - bar.progress).float / perSec -
+      ((getMonoTime().ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
 
-  result = bar.barStr[index] &
+  result = bar.barStr &
     " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " & perSec.formatUnit & "/sec]"
 
   when defined(suruDebug):
-    result &= " " & ((getMonoTime().ticks - bar.currentAccess[index].ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
+    result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
 
-proc show*(bar: var SuruBar, index: int = 0) =
-  ## Shows the bar in a formatted style.
-  let difference = index - bar.currentIndex
+proc moveCursor(sb: var SuruBar, index: int = 0) =
+  let difference = index - sb.currentIndex
   if difference < 0:
     stdout.cursorUp(abs(difference))
   elif difference > 0:
     stdout.cursorDown(abs(difference))
-  bar.currentIndex = index
+  sb.currentIndex = index
+
+proc show*(bar: var SingleSuruBar) =
+  ## Shows the sb in a formatted style.
   when defined(windows):
     stdout.eraseLine()
-    stdout.write(`$`(bar, index))
+    stdout.write($bar)
   else:
-    stdout.write("\e[2K", `$`(bar, index))
+    stdout.write("\e[2K", $bar)
   stdout.flushFile()
   stdout.setCursorXPos(0)
 
-proc reset*(bar: var SuruBar, index: int = 0, iterableLength: int) =
+proc reset*(bar: var SingleSuruBar, iterableLength: int) =
   ## Resets the bar to an empty bar, not including its length and total.
   let now = getMonoTime()
-  bar.progress[index] = 0
-  bar.total[index] = iterableLength
-  bar.barStr[index] = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
-    " ".repeat(bar.length[index]) & "| " & "0".align(($bar.total[index]).len, ' ') &
-    "/" & ($bar.total[index])
-  bar.progressStat[index] = 0.ExpMovingAverager
-  bar.timeStat[index] = 0.ExpMovingAverager
-  bar.startTime[index] = now
-  bar.lastIncrement[index] = now
-  bar.currentAccess[index] = now
-  bar.lastAccess[index] = now
-  bar.lastProgress[index] = 0
+  bar.progress = 0
+  bar.total = iterableLength
+  bar.barStr = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" &
+    " ".repeat(bar.length) & "| " & "0".align(($bar.total).len, ' ') &
+    "/" & ($bar.total)
+  bar.progressStat = 0.ExpMovingAverager
+  bar.timeStat = 0.ExpMovingAverager
+  bar.startTime = now
+  bar.lastIncrement = now
+  bar.currentAccess = now
+  bar.lastAccess = now
+  bar.lastProgress = 0
 
-proc setup*(bar: var SuruBar, iterableLengths: varargs[int]) =
-
+proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
   # sets certain fields more properly now that the iterable length is known
-  doAssert iterableLengths.len == bar.len
+  doAssert iterableLengths.len == sb.bars.len
 
   for index in 1..<iterableLengths.len:
     echo ""
   if iterableLengths.len > 1:
     stdout.cursorUp(iterableLengths.len - 1)
 
-  bar.total = @iterableLengths
-  bar.barStr = zip(bar.length, bar.total).mapIt(
-    0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(it[0]) & "| " &
-    "0".align(($it[1]).len, ' ') & "/" & ($it[1])
-  )
-  bar.startTime = getMonoTime().repeat(iterableLengths.len)
-  bar.currentAccess = bar.startTime
-  bar.lastAccess = bar.startTime
-  bar.lastIncrement = bar.startTime
-  for index in 0..<iterableLengths.len:
-    bar.timeStat[index].push 0
-    bar.progressStat[index].push 0
-    bar.show(index)
+  for index, iterableLength in iterableLengths:
+    sb[index].total = iterableLength
+    sb[index].barStr = 0.formatFloat(ffDecimal, 0).align(3, ' ') & "%|" & " ".repeat(sb[index].length) & "| " & "0".align(($sb[index].total).len, ' ') & "/" & $sb[index].total
+    sb[index].startTime = getMonoTime()
+    sb[index].currentAccess = sb[index].startTime
+    sb[index].lastAccess = sb[index].startTime
+    sb[index].lastIncrement = sb[index].startTime
+    sb[index].timeStat.push 0
+    sb[index].progressStat.push 0
+    sb.moveCursor(index)
+    sb[index].show()
 
-proc setup*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) =
-  bar.setup((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
+proc setup*(sb: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) =
+  sb.setup((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
 
-proc start*(bar: var SuruBar, iterableLengths: varargs[int]) {.deprecated: "Deprecated, use ``setup``".} =
-  bar.setup(iterableLengths)
+proc start*(sb: var SuruBar, iterableLengths: varargs[int]) {.deprecated: "Deprecated, use ``setup``".} =
+  sb.setup(iterableLengths)
 
-proc start*(bar: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) {.deprecated: "Deprecated, use ``setup``".} =
-  bar.setup(iterableLengthsAndAmounts)
+proc start*(sb: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) {.deprecated: "Deprecated, use ``setup``".} =
+  sb.setup(iterableLengthsAndAmounts)
 
-proc update*(bar: var SuruBar, delay: int = 8_000_000, index: int = 0) =
+proc update*(sb: var SuruBar, delay: int = 8_000_000, index: int = 0) =
   let
     newTime = getMonoTime()
-    difference = newTime.ticks - bar.lastAccess[index].ticks # in nanoseconds
+    difference = newTime.ticks - sb[index].lastAccess.ticks # in nanoseconds
   if difference > max(delay, 1_000_000): # in nanoseconds
-    bar.currentAccess[index] = newTime
-    bar.show(index)
-    bar.lastAccess[index] = newTime
+    sb[index].currentAccess = newTime
+    sb.moveCursor(index)
+    sb[index].show()
+    sb[index].lastAccess = newTime
 
-proc updateAll*(bar: var SuruBar, delay: int = 8_000_000) =
-  for index in bar:
-    bar.update(delay, index)
+proc updateAll*(sb: var SuruBar, delay: int = 8_000_000) =
+  for index, _ in sb:
+    sb.update(delay, index)
 
-proc finish*(bar: var SuruBar) =
-  for index in bar:
-    bar.show(index)
+proc finish*(sb: var SuruBar) =
+  for index, _ in sb:
+    sb.moveCursor(index)
+    sb[index].show()
   echo ""
 
 #
@@ -312,14 +335,14 @@ when isMainModule:
       sleep(1000)
 
   test "alternate long time test":
-    var bar: SuruBar = initSuruBar(25)
-    bar.setup(4)
+    var sb: SuruBar = initSuruBar(25)
+    sb.setup(4)
     for a in 1..1000:
       sleep 5
       if a mod 250 == 0:
-        inc bar
-      bar.update(50_000_000)
-    bar.finish()
+        inc sb
+      sb.update(50_000_000)
+    sb.finish()
 
   test "constant time test":
     for a in suru(0..<100):
@@ -340,45 +363,45 @@ when isMainModule:
   test "multi-bar test":
     echo "check if this line is removed by the bars"
     sleep 1000
-    var bar: SuruBar = initSuruBar(25, 25)
-    bar.setup(1000, 40)
+    var sb: SuruBar = initSuruBar(25, 25)
+    sb.setup(1000, 40)
     for a in 1..1000:
       sleep 25
-      inc bar
+      inc sb
       if a mod 25 == 0:
-        inc bar, 1
-      bar.update(50_000_000)
-      bar.update(50_000_000, 1)
-    bar.finish()
+        inc sb[1]
+      sb.update(50_000_000)
+      sb.update(50_000_000, 1)
+    sb.finish()
     echo "check if this line is removed by the bars"
 
   test "iterative bar test":
-    var bar: SuruBar = initSuruBar(25, 25)
-    bar.setup(10, 100)
+    var sb: SuruBar = initSuruBar(25, 25)
+    sb.setup(10, 100)
     for a in 1..10:
-      bar.reset(1, a*10)
+      sb[1].reset(a*10)
       for b in 1..a*10:
         sleep 25
-        inc bar, 1
-        bar.update(50_000_000)
-        bar.update(50_000_000, 1)
-      inc bar
-    bar.finish()
+        inc sb[1]
+        sb.update(50_000_000)
+        sb.update(50_000_000, 1)
+      inc sb
+    sb.finish()
 
   test "overhead test": # use -d:suruDebug to see overhead
-    var bar: SuruBar = initSuruBar(25)
-    bar.setup(10_000_000)
+    var sb: SuruBar = initSuruBar(25)
+    sb.setup(10_000_000)
     for a in 1..10_000_000:
       # sleep 1
-      inc bar
-      bar.update(1_000)
-    bar.finish()
+      inc sb
+      sb.update(8_000_000)
+    sb.finish()
 
   test "multi-bar frame time test":
-    var bar: SuruBar = initSuruBar((25, 30))
-    bar.setup((10_000, 30))
+    var sb: SuruBar = initSuruBar((25, 30))
+    sb.setup((10_000, 30))
     for a in 1..10_000:
       # sleep 1
-      incAll bar
-      bar.updateAll(1_000)
-    bar.finish()
+      incAll sb
+      sb.updateAll(8_000_000)
+    sb.finish()
