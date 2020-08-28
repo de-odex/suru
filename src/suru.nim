@@ -152,7 +152,7 @@ proc inc*(bar: var SingleSuruBar) =
     ($bar.progress).align(totalStr.len, ' ') & "/" & totalStr
 
   let newTime = getMonoTime()
-  bar.timeStat.push (newTime.ticks - bar.lastIncrement.ticks).int div 1_000_000
+  bar.timeStat.push (newTime.ticks - bar.lastIncrement.ticks).int
   bar.lastIncrement = newTime
   bar.progressStat.push bar.progress - bar.lastProgress
   bar.lastProgress = bar.progress
@@ -164,7 +164,7 @@ proc inc*(sb: var SuruBar) =
 
 proc `$`(bar: SingleSuruBar): string =
   let
-    perSec = bar.progressStat.float * (1000/bar.timeStat.float)
+    perSec = bar.progressStat.float * (1_000_000_000 / bar.timeStat.float)
     timeElapsed = (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
     timeLeft = (bar.total - bar.progress).float / perSec -
       ((getMonoTime().ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
