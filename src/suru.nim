@@ -326,7 +326,7 @@ when isMainModule:
       sleep(1000)
 
   test "alternate long time test":
-    var sb: SuruBar = initSuruBar(25)
+    var sb = initSuruBar()
     sb.setup(4)
     for a in 1..1000:
       sleep 5
@@ -354,11 +354,11 @@ when isMainModule:
   test "multi-bar test":
     echo "check if this line is removed by the bars"
     sleep 1000
-    var sb: SuruBar = initSuruBar(25, 25)
+    var sb = initSuruBar(2)
     sb.setup(1000, 40)
     for a in 1..1000:
       sleep 25
-      inc sb
+      inc sb[0]
       if a mod 25 == 0:
         inc sb[1]
       sb.update(50_000_000)
@@ -367,7 +367,7 @@ when isMainModule:
     echo "check if this line is removed by the bars"
 
   test "iterative bar test":
-    var sb: SuruBar = initSuruBar(25, 25)
+    var sb = initSuruBar(2)
     sb.setup(10, 100)
     for a in 1..10:
       sb[1].reset(a*10)
@@ -376,11 +376,11 @@ when isMainModule:
         inc sb[1]
         sb.update(50_000_000)
         sb.update(50_000_000, 1)
-      inc sb
+      inc sb[0]
     sb.finish()
 
   test "overhead test": # use -d:suruDebug to see overhead
-    var sb: SuruBar = initSuruBar(25)
+    var sb = initSuruBar()
     sb.setup(10_000_000)
     for a in 1..10_000_000:
       # sleep 1
@@ -389,10 +389,10 @@ when isMainModule:
     sb.finish()
 
   test "multi-bar frame time test":
-    var sb: SuruBar = initSuruBar((25, 30))
+    var sb = initSuruBar(30)
     sb.setup((10_000, 30))
     for a in 1..10_000:
       # sleep 1
-      incAll sb
-      sb.updateAll(8_000_000)
+      inc sb
+      sb.update(8_000_000)
     sb.finish()
