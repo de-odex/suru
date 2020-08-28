@@ -128,9 +128,10 @@ proc `[]`*(bar: SuruBar, index: Natural): SingleSuruBar =
 proc `[]`*(bar: var SuruBar, index: Natural): var SingleSuruBar =
   bar.bars[index]
 
-proc inc*(bar: var SingleSuruBar) =
+proc inc*(bar: var SingleSuruBar, y: Natural = 1) =
   ## Increments the bar progress
   let lastProgress = bar.progress
+  inc bar.progress, y
   let newTime = getMonoTime()
   bar.timeStat.push (newTime.ticks - bar.lastIncrement.ticks).int
   bar.lastIncrement = newTime
