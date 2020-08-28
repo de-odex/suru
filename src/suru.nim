@@ -15,7 +15,6 @@ type
     lastIncrement: MonoTime
     currentAccess: MonoTime
     lastAccess: MonoTime
-    lastProgress: int
   SuruBar* = object
     bars: seq[SingleSuruBar]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
@@ -100,7 +99,6 @@ proc initSingleSuruBar*(length: int): SingleSuruBar =
     #lastIncrement: MonoTime(),
     #currentAccess: MonoTime(),
     #lastAccess: MonoTime(),
-    #lastProgress: 0,
   )
 
 proc initSuruBar*(bars: int = 1): SuruBar =
@@ -134,12 +132,11 @@ proc `[]`*(bar: var SuruBar, index: Natural): var SingleSuruBar =
 
 proc inc*(bar: var SingleSuruBar) =
   ## Increments the bar progress
-  inc bar.progress
+  let lastProgress = bar.progress
   let newTime = getMonoTime()
   bar.timeStat.push (newTime.ticks - bar.lastIncrement.ticks).int
   bar.lastIncrement = newTime
-  bar.progressStat.push bar.progress - bar.lastProgress
-  bar.lastProgress = bar.progress
+  bar.progressStat.push bar.progress - lastProgress
 
 proc inc*(sb: var SuruBar) =
   ## Increments the bar progress
@@ -204,7 +201,6 @@ proc reset*(bar: var SingleSuruBar, iterableLength: int) =
   bar.lastIncrement = now
   bar.currentAccess = now
   bar.lastAccess = now
-  bar.lastProgress = 0
 
 proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
   # call this immediately before your loop
