@@ -312,10 +312,7 @@ when compileOption("threads"):
         sleep 50
         sbc[].bar.update()
       # finished now
-      for index, _ in sbc:
-        sbc[].bar.moveCursor(index)
-        sbc[index].show()
-      echo ""
+      sbc[].bar.finish()
 
     createThread(sbc[].progressThread, progressThread, sbc)
 
