@@ -8,7 +8,6 @@ type
     length*: int
     progress: int
     total: int
-    barStr: string
     progressStat: ExpMovingAverager
     timeStat: ExpMovingAverager
     startTime: MonoTime
@@ -92,7 +91,6 @@ proc initSingleSuruBar*(length: int): SingleSuruBar =
     length: length,
     #progress: 0,
       #total: 0,
-    barStr: &"{0:>3}%|" & " ".repeat(length) & "| " & "0/0",
     #progressStat: 0.ExpMovingAverager,
     #timeStat: 0.ExpMovingAverager,
     #startTime: MonoTime(),
@@ -192,9 +190,6 @@ proc reset*(bar: var SingleSuruBar, iterableLength: int) =
   let now = getMonoTime()
   bar.progress = 0
   bar.total = iterableLength
-  bar.barStr = &"{0:>3}%|" &
-    " ".repeat(bar.length) & "| " & "0".align(($bar.total).len, ' ') &
-    "/" & ($bar.total)
   bar.progressStat = 0.ExpMovingAverager
   bar.timeStat = 0.ExpMovingAverager
   bar.startTime = now
@@ -214,7 +209,6 @@ proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
 
   for index, iterableLength in iterableLengths:
     sb[index].total = iterableLength
-    sb[index].barStr = &"{0:>3}" & "%|" & " ".repeat(sb[index].length) & "| " & "0".align(($sb[index].total).len, ' ') & "/" & $sb[index].total
     sb[index].startTime = getMonoTime()
     sb[index].currentAccess = sb[index].startTime
     sb[index].lastAccess = sb[index].startTime
