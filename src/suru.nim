@@ -46,17 +46,17 @@ proc highestMagnitude(n: float): (float, int) =
 proc formatUnit*(n: float): string =
   case n.classify
   of fcNan:
-    return static: "??".align(6, ' ')
+    return static: "??".align(7, ' ')
   of {fcNormal, fcSubnormal, fcZero, fcNegZero}:
     let (n, mag) = highestMagnitude(n)
     if n <= 1_000:
-      result = (n.formatFloat(ffDecimal, 2) & prefixes[mag]).align(6, ' ')
+      result = &"{n:>6.2f}" & prefixes[mag]
     else:
-      result = static: ">1.00Y".align(6, ' ')
+      result = static: ">1.00Y".align(7, ' ')
   of fcInf:
-    result = static: ">1.00Y".align(6, ' ')
+    result = static: ">1.00Y".align(7, ' ')
   of fcNegInf:
-    result = static: "0.00".align(6, ' ')
+    result = static: "0.00".align(7, ' ')
 
 proc formatTime(secs: SomeFloat): string =
   if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
