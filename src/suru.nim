@@ -19,7 +19,7 @@ type
     bars: seq[SingleSuruBar]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
 
-let
+const
   fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
   prefixes = ["", "k", "M", "G", "T", "P", "E", "Z"] # Y is omitted, max is 1Y
 
@@ -122,7 +122,7 @@ iterator mitems*(sb: var SuruBar): var SingleSuruBar =
     yield sb.bars[index]
     inc(index)
 
-iterator pairs*(sb: var SuruBar): (int, SingleSuruBar) =
+iterator pairs*(sb: SuruBar): (int, SingleSuruBar) =
   var index: int
   while index < sb.bars.len:
     yield (index, sb.bars[index])
