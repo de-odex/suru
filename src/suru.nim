@@ -82,7 +82,6 @@ proc push(mv: var ExpMovingAverager, value: int) =
 #
 
 proc initSingleSuruBar*(length: int): SingleSuruBar =
-  let length = if length == 0: 25 else: length
   SingleSuruBar(
     length: length,
     #progress: 0,
@@ -97,20 +96,12 @@ proc initSingleSuruBar*(length: int): SingleSuruBar =
     #lastProgress: 0,
   )
 
-proc initSuruBar*(lengths: varargs[int]): SuruBar =
-  ## Creates a SuruBar with the given lengths
+proc initSuruBar*(bars: int = 1): SuruBar =
+  ## Creates a SuruBar with the given amount of bars
   ## Does not prime the bar for a loop, use ``setup`` for that
-  let lengths = if lengths.len == 0:
-    @[25]
-  else:
-    @lengths
   SuruBar(
-    bars: lengths.mapIt(initSingleSuruBar(it))
+    bars: initSingleSuruBar(25).repeat(bars),
   )
-
-proc initSuruBar*(lengthsAndAmounts: varargs[(int, int)]): SuruBar =
-  # [(5, 2), (7, 4)] becomes [5, 5, 7, 7, 7, 7]
-  initSuruBar((@lengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
 
 iterator items*(sb: SuruBar): SingleSuruBar =
   for bar in sb.bars:
