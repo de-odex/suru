@@ -1,5 +1,6 @@
 import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode, strformat
 {.experimental: "forLoopMacros".}
+when compileOption("threads"): import os, locks
 
 type
   ExpMovingAverager = distinct float
@@ -18,6 +19,12 @@ type
   SuruBar* = object
     bars: seq[SingleSuruBar]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
+when compileOption("threads"):
+  type
+    SuruBarController = object
+      bar: SuruBar
+      finished: bool
+      progressThread: Thread[ptr SuruBarController]
 
 const
   fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
@@ -136,12 +143,12 @@ proc inc*(bar: var SingleSuruBar) =
     totalStr = $bar.total
 
   # TODO: improve the algorithm
-  if shaded < bar.length:
-    bar.barStr = "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
-  elif shaded == bar.length:
-    bar.barStr = "█".repeat(shaded)
+  let barStr = if shaded < bar.length:
+      "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
+    else:
+      "█".repeat(shaded)
   bar.barStr = &"{(percentage*100).round.int:>3}%|" &
-    bar.barStr & "| " &
+    barStr & "| " &
     ($bar.progress).align(totalStr.len, ' ') & "/" & totalStr
 
   let newTime = getMonoTime()
@@ -203,6 +210,7 @@ proc reset*(bar: var SingleSuruBar, iterableLength: int) =
   bar.lastProgress = 0
 
 proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
+  # call this immediately before your loop
   # sets certain fields more properly now that the iterable length is known
   doAssert iterableLengths.len == sb.bars.len
 
@@ -254,6 +262,82 @@ proc finish*(sb: var SuruBar) =
     sb.moveCursor(index)
     sb[index].show()
   echo ""
+
+#
+
+when compileOption("threads"):
+  # TODO: fix code duplication
+  proc initSuruBarThreaded*(bars: int = 1): ptr SuruBarController =
+    ## Creates a SuruBar with the given amount of bars
+    ## Does not prime the bar for a loop, use ``setup`` for that
+    result = createShared(SuruBarController)
+    result[] = SuruBarController(
+      bar: SuruBar(bars: initSingleSuruBar(25).repeat(bars)),
+    )
+
+  iterator items*(sbc: ptr SuruBarController): SingleSuruBar =
+    for bar in sbc[].bar.bars:
+      yield bar
+
+  iterator mitems*(sbc: ptr SuruBarController): var SingleSuruBar =
+    var index: int
+    while index < sbc[].bar.bars.len:
+      yield sbc[].bar.bars[index]
+      inc(index)
+
+  iterator pairs*(sbc: ptr SuruBarController): (int, SingleSuruBar) =
+    var index: int
+    while index < sbc[].bar.bars.len:
+      yield (index, sbc[].bar.bars[index])
+      inc(index)
+
+  proc `[]`*(sbc: ptr SuruBarController, index: Natural): var SingleSuruBar =
+    sbc[].bar.bars[index]
+
+  proc inc*(sbc: ptr SuruBarController) =
+    ## Increments the bar progress
+    for bar in sbc[].bar.mitems:
+      inc bar
+
+  proc moveCursor(sbc: ptr SuruBarController, index: int = 0) =
+    let difference = index - sbc[].bar.currentIndex
+    if difference < 0:
+      stdout.cursorUp(abs(difference))
+    elif difference > 0:
+      stdout.cursorDown(abs(difference))
+    sbc[].bar.currentIndex = index
+
+  proc setup*(sbc: ptr SuruBarController, iterableLengths: varargs[int]) =
+    sbc[].bar.setup(iterableLengths)
+
+    proc progressThread(sbc: ptr SuruBarController) {.thread.} =
+      while not sbc.finished:
+        sleep 50
+        sbc[].bar.update()
+      # finished now
+      for index, _ in sbc:
+        sbc[].bar.moveCursor(index)
+        sbc[index].show()
+      echo ""
+
+    createThread(sbc[].progressThread, progressThread, sbc)
+
+  proc setup*(sbc: ptr SuruBarController, iterableLengthsAndAmounts: varargs[(int, int)]) =
+    sbc.setup((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
+
+  template update*(sbc: ptr SuruBarController, delay: int = 0, index: int = 0) =
+    discard
+
+  proc finish*(sbc: ptr SuruBarController) =
+    sbc[].finished = true
+    joinThread(sbc[].progressThread)
+    freeShared(sbc)
+else:
+  proc initSuruBarThreaded*(bars: int = 1): SuruBar =
+    ## Creates a SuruBar with the given amount of bars
+    ## Does not prime the bar for a loop, use ``setup`` for that
+    {.hint: "threads is not on, using non-threaded version".}
+    initSuruBar(bars)
 
 #
 
@@ -396,3 +480,13 @@ when isMainModule:
       inc sb
       sb.update(8_000_000)
     sb.finish()
+
+  when compileOption("threads"):
+    test "threaded test":
+      var sb = initSuruBarThreaded(30)
+      sb.setup((100_000, 30))
+      for a in 1..100_000:
+        sleep 1
+        inc sb
+        sb.update(8_000_000)
+      sb.finish()
