@@ -49,7 +49,7 @@ proc formatUnit*(n: float): string =
     return static: "??".align(6, ' ')
   of {fcNormal, fcSubnormal, fcZero, fcNegZero}:
     let (n, mag) = highestMagnitude(n)
-    if n < 1_000:
+    if n <= 1_000:
       result = (n.formatFloat(ffDecimal, 2) & prefixes[mag]).align(6, ' ')
     else:
       result = static: ">1.00Y".align(6, ' ')
@@ -65,7 +65,7 @@ proc formatTime(secs: SomeFloat): string =
   elif secs < 0:
     # cheat bad float subtraction by clipping anything under 0 to 0
     result = " 0.0s"
-  elif secs <= 100:
+  elif secs < 100:
     # under a minute and 40 seconds, just render as seconds
     result = (secs.formatFloat(ffDecimal, 1) & "s").align(5, ' ')
   else:
