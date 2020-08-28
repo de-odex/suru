@@ -161,9 +161,6 @@ proc inc*(bar: var SingleSuruBar) =
 
 proc inc*(sb: var SuruBar) =
   ## Increments the bar progress
-  inc sb[0]
-
-proc incAll*(sb: var SuruBar) =
   for bar in sb.mitems:
     inc bar
 
@@ -244,19 +241,22 @@ proc start*(sb: var SuruBar, iterableLengths: varargs[int]) {.deprecated: "Depre
 proc start*(sb: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) {.deprecated: "Deprecated, use ``setup``".} =
   sb.setup(iterableLengthsAndAmounts)
 
-proc update*(sb: var SuruBar, delay: int = 8_000_000, index: int = 0) =
+proc update*(sb: var SuruBar, delay: int = 8_000_000, index: int = -1) =
+  template update {.dirty.} =
+    let
+      difference = newTime.ticks - sb[index].lastAccess.ticks # in nanoseconds
+    if difference > max(delay, 1_000_000): # in nanoseconds
+      sb[index].currentAccess = newTime
+      sb.moveCursor(index)
+      sb[index].show()
+      sb[index].lastAccess = newTime
   let
     newTime = getMonoTime()
-    difference = newTime.ticks - sb[index].lastAccess.ticks # in nanoseconds
-  if difference > max(delay, 1_000_000): # in nanoseconds
-    sb[index].currentAccess = newTime
-    sb.moveCursor(index)
-    sb[index].show()
-    sb[index].lastAccess = newTime
-
-proc updateAll*(sb: var SuruBar, delay: int = 8_000_000) =
-  for index, _ in sb:
-    sb.update(delay, index)
+  if index < 0:
+    for index, _ in sb:
+      update()
+  else:
+    update()
 
 proc finish*(sb: var SuruBar) =
   for index, _ in sb:
