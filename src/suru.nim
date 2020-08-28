@@ -135,22 +135,6 @@ proc `[]`*(bar: var SuruBar, index: Natural): var SingleSuruBar =
 proc inc*(bar: var SingleSuruBar) =
   ## Increments the bar progress
   inc bar.progress
-  let
-    percentage = bar.progress / bar.total
-    shaded = floor(percentage * bar.length.float).int
-    fractional = (percentage * bar.length.float * 8).int mod 8
-    unshaded = bar.length - shaded - (if fractional == 0: 0 else: 1)
-    totalStr = $bar.total
-
-  # TODO: improve the algorithm
-  let barStr = if shaded < bar.length:
-      "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
-    else:
-      "█".repeat(shaded)
-  bar.barStr = &"{(percentage*100).round.int:>3}%|" &
-    barStr & "| " &
-    ($bar.progress).align(totalStr.len, ' ') & "/" & totalStr
-
   let newTime = getMonoTime()
   bar.timeStat.push (newTime.ticks - bar.lastIncrement.ticks).int
   bar.lastIncrement = newTime
@@ -168,8 +152,21 @@ proc `$`(bar: SingleSuruBar): string =
     timeElapsed = (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
     timeLeft = (bar.total - bar.progress).float / perSec -
       ((getMonoTime().ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
+    percentage = bar.progress / bar.total
+    shaded = floor(percentage * bar.length.float).int
+    fractional = (percentage * bar.length.float * 8).int mod 8
+    unshaded = bar.length - shaded - (if fractional == 0: 0 else: 1)
+    totalStr = $bar.total
 
-  result = bar.barStr &
+  # TODO: improve the algorithm
+  let barStr = if shaded < bar.length:
+      "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
+    else:
+      "█".repeat(shaded)
+
+  result = &"{(percentage*100).round.int:>3}%|" &
+    barStr & "| " &
+    ($bar.progress).align(totalStr.len, ' ') & "/" & totalStr &
     " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " & perSec.formatUnit & "/sec]"
 
   when defined(suruDebug):
