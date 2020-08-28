@@ -4,7 +4,7 @@ import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode
 type
   ExpMovingAverager = distinct float
   SingleSuruBar* = object
-    length: int
+    length*: int
     progress: int
     total: int
     barStr: string
@@ -164,7 +164,7 @@ proc inc*(sb: var SuruBar) =
   for bar in sb.mitems:
     inc bar
 
-proc `$`*(bar: SingleSuruBar): string =
+proc `$`(bar: SingleSuruBar): string =
   let
     perSec = bar.progressStat.float * (1000/bar.timeStat.float)
     timeElapsed = (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
@@ -185,7 +185,7 @@ proc moveCursor(sb: var SuruBar, index: int = 0) =
     stdout.cursorDown(abs(difference))
   sb.currentIndex = index
 
-proc show*(bar: var SingleSuruBar) =
+proc show(bar: var SingleSuruBar) =
   ## Shows the sb in a formatted style.
   when defined(windows):
     stdout.eraseLine()
