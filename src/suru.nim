@@ -64,7 +64,7 @@ proc formatUnit*(n: float): string =
   of fcNegInf:
     result = static: "0.00".align(7, ' ')
 
-proc formatTime(secs: SomeFloat): string =
+proc formatTime*(secs: SomeFloat): string =
   if secs.classify notin {fcNormal, fcSubnormal, fcZero}:
     # if time is abnormal, output ??
     result = "  ??s"
