@@ -43,7 +43,7 @@ proc fitMagnitude(n: float, magnitude: int): (float, int) =
 proc fittedMagnitude(n: float): (float, int) =
   result = (n, 0)
   var new = fitMagnitude(result[0], result[1])
-  while result != new and (new[1] <= prefixes.high or new[1] >= prefixes.low):
+  while result != new and (new[1] <= prefixes.high and new[1] >= prefixes.low):
     result = new
     new = fitMagnitude(result[0], result[1])
 
