@@ -26,31 +26,39 @@ when compileOption("threads"):
 
 const
   fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
-  prefixes = ["", "k", "M", "G", "T", "P", "E", "Z"] # Y is omitted, max is 1Y
+  prefixes = [
+    -8: "y", "z", "a", "f", "p", "n", "u", "m",
+    "",
+    "k", "M", "G", "T", "P", "E", "Z"
+  ] # Y is omitted, max is 1Y
 
-proc incMagnitude(n: float, magnitude: int): (float, int) =
+proc fitMagnitude(n: float, magnitude: int): (float, int) =
   if n > 1000:
     result = (n / 1000, magnitude + 1)
+  elif n < 0.1:
+    result = (n * 1000, magnitude - 1)
   else:
     result = (n, magnitude)
 
-proc highestMagnitude(n: float): (float, int) =
+proc fittedMagnitude(n: float): (float, int) =
   result = (n, 0)
-  var new = incMagnitude(result[0], result[1])
-  while result != new and new[1] <= prefixes.high:
+  var new = fitMagnitude(result[0], result[1])
+  while result != new and (new[1] <= prefixes.high or new[1] >= prefixes.low):
     result = new
-    new = incMagnitude(result[0], result[1])
+    new = fitMagnitude(result[0], result[1])
 
 proc formatUnit*(n: float): string =
   case n.classify
   of fcNan:
     return static: "??".align(7, ' ')
   of {fcNormal, fcSubnormal, fcZero, fcNegZero}:
-    let (n, mag) = highestMagnitude(n)
-    if n <= 1_000:
-      result = &"{n:>6.2f}" & prefixes[mag]
-    else:
+    let (n, mag) = fittedMagnitude(n)
+    if n > 1_000 and mag == prefixes.high:
       result = static: ">1.00Y".align(7, ' ')
+    elif n < 0.1 and mag == prefixes.low:
+      result = static: "<0.10y".align(7, ' ')
+    else:
+      result = &"{n:>6.2f}" & prefixes[mag]
   of fcInf:
     result = static: ">1.00Y".align(7, ' ')
   of fcNegInf:
