@@ -27,7 +27,6 @@ when compileOption("threads"):
 # utility
 
 const
-  fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
   prefixes = [
     -8: "y", "z", "a", "f", "p", "n", "u", "m",
     "",
@@ -94,6 +93,36 @@ proc push(mv: var ExpMovingAverager, value: float) =
 proc push(mv: var ExpMovingAverager, value: int) =
   mv.push(value.float)
 
+# getters and format generators
+
+proc progress*(bar: SingleSuruBar): int = bar.progress
+proc total*(bar: SingleSuruBar): int = bar.total
+proc perSecond*(bar: SingleSuruBar): float =
+  bar.progressStat.float * (1_000_000_000 / bar.timeStat.float)
+proc elapsed*(bar: SingleSuruBar): float =
+  (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
+proc eta*(bar: SingleSuruBar): float =
+  (bar.total - bar.progress).float / bar.perSecond - ((bar.currentAccess.ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
+proc percent*(bar: SingleSuruBar): float = bar.progress / bar.total
+
+proc barDisplay*(
+    bar: SingleSuruBar,
+    shaded: string = "█",
+    unshaded: string = " ",
+    fractionals: seq[string] = @["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
+  ): string =
+  let
+    percentage = bar.percent
+    shadedCount = floor(percentage * bar.length.float).int
+    fractionalCount = (percentage * (bar.length * fractionals.len).float).int mod fractionals.len
+    unshadedCount = bar.length - shadedCount - min(fractionalCount, 1)
+
+  # TODO: improve the algorithm
+  result = if shadedCount < bar.length:
+      shaded.repeat(shadedCount) & fractionals[fractionalCount] & unshaded.repeat(unshadedCount)
+    else:
+      shaded.repeat(shadedCount)
+
 # main suru bar code
 
 proc initSingleSuruBar*(length: int): SingleSuruBar =
@@ -153,27 +182,12 @@ proc inc*(sb: var SuruBar) =
     inc bar
 
 proc `$`(bar: SingleSuruBar): string =
-  let
-    perSec = bar.progressStat.float * (1_000_000_000 / bar.timeStat.float)
-    timeElapsed = (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
-    timeLeft = (bar.total - bar.progress).float / perSec -
-      ((getMonoTime().ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
-    percentage = bar.progress / bar.total
-    shaded = floor(percentage * bar.length.float).int
-    fractional = (percentage * bar.length.float * 8).int mod 8
-    unshaded = bar.length - shaded - (if fractional == 0: 0 else: 1)
-    totalStr = $bar.total
+  let totalStr = $bar.total
 
-  # TODO: improve the algorithm
-  let barStr = if shaded < bar.length:
-      "█".repeat(shaded) & fractionals[fractional] & " ".repeat(unshaded)
-    else:
-      "█".repeat(shaded)
-
-  result = &"{(percentage*100).round.int:>3}%|" &
-    barStr & "| " &
-    ($bar.progress).align(totalStr.len, ' ') & "/" & totalStr &
-    " [" & timeElapsed.formatTime & "<" & timeLeft.formatTime & ", " & perSec.formatUnit & "/sec]"
+  result = &"{(bar.percent*100).int:>3}%|{bar.barDisplay}| " &
+    &"{($bar.progress).align(totalStr.len, ' ')}" &
+    &"/{totalStr} [{bar.elapsed.formatTime}<{bar.eta.formatTime}, " &
+    &"{bar.perSecond.formatUnit}/sec]"
 
   when defined(suruDebug):
     result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
