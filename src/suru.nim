@@ -7,11 +7,11 @@ type
   SingleSuruBar* = object
     length*: int
     progress: int
-    total: int
-    progressStat: ExpMovingAverager
-    timeStat: ExpMovingAverager
-    startTime: MonoTime
-    lastIncrement: MonoTime
+    total: int                      # total amount of progresses
+    progressStat: ExpMovingAverager # moving average of increments to progresses
+    timeStat: ExpMovingAverager     # moving average of time difference between progresses
+    startTime: MonoTime             # start time of bar
+    lastIncrement: MonoTime         # last time bar was incremented, used for timeStat
     currentAccess: MonoTime
     lastAccess: MonoTime
   SuruBar* = object
@@ -19,10 +19,12 @@ type
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
 when compileOption("threads"):
   type
-    SuruBarController = object
+    SuruBarController = object # new object to still allow non-threaded SuruBars when threads:on
       bar: SuruBar
       finished: bool
       progressThread: Thread[ptr SuruBarController]
+
+# utility
 
 const
   fractionals = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
@@ -79,7 +81,7 @@ proc formatTime*(secs: SomeFloat): string =
     let secs = secs.int
     result = ($(secs div 60)).align(2, '0') & ":" & ($(secs mod 60)).align(2, '0')
 
-#
+# exponential moving averager
 
 const alpha = exp(-1/5)
 
@@ -92,7 +94,7 @@ proc push(mv: var ExpMovingAverager, value: float) =
 proc push(mv: var ExpMovingAverager, value: int) =
   mv.push(value.float)
 
-#
+# main suru bar code
 
 proc initSingleSuruBar*(length: int): SingleSuruBar =
   SingleSuruBar(
