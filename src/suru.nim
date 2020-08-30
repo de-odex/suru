@@ -14,6 +14,7 @@ type
     lastIncrement: MonoTime         # last time bar was incremented, used for timeStat
     currentAccess: MonoTime
     lastAccess: MonoTime
+    format: proc(bar: SingleSuruBar): string {.gcsafe.}
   SuruBar* = object
     bars: seq[SingleSuruBar]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
@@ -123,6 +124,10 @@ proc barDisplay*(
     else:
       shaded.repeat(shadedCount)
 
+proc `format=`*(bar: var SingleSuruBar, format: proc(bar: SingleSuruBar): string {.gcsafe.}) =
+  if bar.format.isNil:
+    bar.format = format
+
 # main suru bar code
 
 proc initSingleSuruBar*(length: int): SingleSuruBar =
@@ -184,10 +189,13 @@ proc inc*(sb: var SuruBar) =
 proc `$`(bar: SingleSuruBar): string =
   let totalStr = $bar.total
 
-  result = &"{(bar.percent*100).int:>3}%|{bar.barDisplay}| " &
-    &"{($bar.progress).align(totalStr.len, ' ')}" &
-    &"/{totalStr} [{bar.elapsed.formatTime}<{bar.eta.formatTime}, " &
-    &"{bar.perSecond.formatUnit}/sec]"
+  if bar.format.isNil:
+    result = &"{(bar.percent*100).int:>3}%|{bar.barDisplay}| " &
+      &"{($bar.progress).align(totalStr.len, ' ')}" &
+      &"/{totalStr} [{bar.elapsed.formatTime}<{bar.eta.formatTime}, " &
+      &"{bar.perSecond.formatUnit}/sec]"
+  else:
+    result = bar.format(bar)
 
   when defined(suruDebug):
     result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
