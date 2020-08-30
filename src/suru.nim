@@ -30,8 +30,8 @@ const
   prefixes = [
     -8: "y", "z", "a", "f", "p", "n", "u", "m",
     "",
-    "k", "M", "G", "T", "P", "E", "Z"
-  ] # Y is omitted, max is 1Y
+    "k", "M", "G", "T", "P", "E", "Z", "Y"
+  ]
 
 proc fitMagnitude(n: float, magnitude: int): (float, int) =
   if n > 1000:
@@ -54,10 +54,10 @@ proc formatUnit*(n: float): string =
     return static: "??".align(7, ' ')
   of {fcNormal, fcSubnormal, fcZero, fcNegZero}:
     let (n, mag) = fittedMagnitude(n)
-    if n > 1_000 and mag == prefixes.high:
-      result = static: ">1.00Y".align(7, ' ')
-    elif n < 0.1 and mag == prefixes.low:
-      result = static: "<0.10y".align(7, ' ')
+    if mag == prefixes.high and n > 99:
+      result = static: ">99.00Y".align(7, ' ')
+    elif mag == prefixes.low and n < 0.01:
+      result = static: "<0.01y".align(7, ' ')
     else:
       result = &"{n:>6.2f}" & prefixes[mag]
   of fcInf:
