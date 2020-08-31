@@ -85,14 +85,12 @@ proc formatTime*(secs: SomeFloat): string =
 
 const alpha = exp(-1/5)
 
-proc push(mv: var ExpMovingAverager, value: float) =
+proc push(mv: var ExpMovingAverager, value: SomeNumber) =
+  let value = value.float
   if mv.float == 0:
     mv = value.ExpMovingAverager
   else:
     mv = (value + alpha * (mv.float - value)).ExpMovingAverager
-
-proc push(mv: var ExpMovingAverager, value: int) =
-  mv.push(value.float)
 
 # getters and format generators
 
