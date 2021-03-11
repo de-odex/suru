@@ -122,9 +122,19 @@ proc barDisplay*(
     else:
       shaded.repeat(shadedCount)
 
+proc formatDefault(bar: SingleSuruBar): string {.gcsafe.} =
+  let totalStr = $bar.total
+
+  result = &"{(bar.percent*100).int:>3}%|{bar.barDisplay}| " &
+    &"{($bar.progress).align(totalStr.len, ' ')}" &
+    &"/{totalStr} [{bar.elapsed.formatTime}<{bar.eta.formatTime}, " &
+    &"{bar.perSecond.formatUnit}/sec]"
+
+  when defined(suruDebug):
+    result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
+
 proc `format=`*(bar: var SingleSuruBar, format: proc(bar: SingleSuruBar): string {.gcsafe.}) =
-  if bar.format.isNil:
-    bar.format = format
+  bar.format = format
 
 # main suru bar code
 
@@ -139,6 +149,7 @@ proc initSingleSuruBar*(length: int): SingleSuruBar =
     #lastIncrement: MonoTime(),
     #currentAccess: MonoTime(),
     #lastAccess: MonoTime(),
+    format: formatDefault,
   )
 
 proc initSuruBar*(bars: int = 1): SuruBar =
@@ -185,18 +196,7 @@ proc inc*(sb: var SuruBar) =
     inc bar
 
 proc `$`(bar: SingleSuruBar): string =
-  let totalStr = $bar.total
-
-  if bar.format.isNil:
-    result = &"{(bar.percent*100).int:>3}%|{bar.barDisplay}| " &
-      &"{($bar.progress).align(totalStr.len, ' ')}" &
-      &"/{totalStr} [{bar.elapsed.formatTime}<{bar.eta.formatTime}, " &
-      &"{bar.perSecond.formatUnit}/sec]"
-  else:
-    result = bar.format(bar)
-
-  when defined(suruDebug):
-    result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
+  result = bar.format(bar)
 
 proc moveCursor(sb: var SuruBar, index: int = 0) =
   let difference = index - sb.currentIndex
