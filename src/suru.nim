@@ -104,31 +104,39 @@ proc eta*(bar: SingleSuruBar): float =
   (bar.total - bar.progress).float / bar.perSecond - ((bar.currentAccess.ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
 proc percent*(bar: SingleSuruBar): float = bar.progress / bar.total
 
-proc barDisplay*(
+
+proc barDisplay*[N](
     bar: SingleSuruBar,
-    shaded: string = "█",
-    unshaded: string = " ",
-    fractionals: seq[string] = @["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
+    shaded: string,
+    unshaded: string,
+    fractionals: array[N, string],
   ): string =
   let
-    percentage = bar.percent
-    shadedCount = floor(percentage * bar.length.float).int
-    fractionalCount = (percentage * (bar.length * fractionals.len).float).int mod fractionals.len
-    unshadedCount = bar.length - shadedCount - min(fractionalCount, 1)
+    percentage      = bar.percent
+    shadedCount     = floor(percentage * bar.length.float).int
+    fractionalIndex =     ((percentage * bar.length.float * fractionals.len.float).int mod fractionals.len) - 1
+    unshadedCount   = bar.length - shadedCount - min(fractionalIndex + 1, 1)
 
-  # TODO: improve the algorithm
-  result = if shadedCount < bar.length:
-      shaded.repeat(shadedCount) & fractionals[fractionalCount] & unshaded.repeat(unshadedCount)
-    else:
-      shaded.repeat(shadedCount)
+  result = newStringOfCap(bar.length * 4)
+  for _ in 0..<shadedCount:
+    result &= shaded
+  if shadedCount < bar.length:
+    if shadedCount + unshadedCount != bar.length:
+      result &= fractionals[fractionalIndex]
+    for _ in 0..<unshadedCount:
+      result &= unshaded
+
+proc barDisplay(bar: SingleSuruBar): string =
+  bar.barDisplay("█", " ", ["▏", "▎", "▍", "▌", "▋", "▊", "▉"])
 
 proc formatDefault(bar: SingleSuruBar): string {.gcsafe.} =
   let totalStr = $bar.total
 
-  result = &"{(bar.percent*100).int:>3}%|{bar.barDisplay}| " &
-    &"{($bar.progress).align(totalStr.len, ' ')}" &
-    &"/{totalStr} [{bar.elapsed.formatTime}<{bar.eta.formatTime}, " &
-    &"{bar.perSecond.formatUnit}/sec]"
+  result = &"{(bar.percent*100).int:>3}%" &
+    &"|{bar.barDisplay}|" &
+    &" {($bar.progress).align(totalStr.len, ' ')}/{totalStr}" &
+    &" [{bar.elapsed.formatTime}<{bar.eta.formatTime}," &
+    &" {bar.perSecond.formatUnit}/sec]"
 
   when defined(suruDebug):
     result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
