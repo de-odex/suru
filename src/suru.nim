@@ -30,7 +30,7 @@ when compileOption("threads"):
 const
   prefixes = [
     -8: "y", "z", "a", "f", "p", "n", "u", "m",
-    "",
+    " ",
     "k", "M", "G", "T", "P", "E", "Z", "Y"
   ]
 
@@ -104,6 +104,11 @@ proc eta*(bar: SingleSuruBar): float =
   (bar.total - bar.progress).float / bar.perSecond - ((bar.currentAccess.ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
 proc percent*(bar: SingleSuruBar): float = bar.progress / bar.total
 
+proc percentDisplay(bar: SingleSuruBar): string =
+  if bar.total > 0:
+    &"{(bar.percent*100).int:>3}%"
+  else:
+    " ??%"
 
 proc barDisplay*[N](
     bar: SingleSuruBar,
@@ -127,16 +132,30 @@ proc barDisplay*[N](
       result &= unshaded
 
 proc barDisplay(bar: SingleSuruBar): string =
-  bar.barDisplay("█", " ", ["▏", "▎", "▍", "▌", "▋", "▊", "▉"])
+  if bar.total > 0:
+    bar.barDisplay("█", " ", ["▏", "▎", "▍", "▌", "▋", "▊", "▉"])
+  else:
+    "░".repeat(bar.length)
+
+proc progressDisplay(bar: SingleSuruBar): string =
+  if bar.total > 0:
+    let totalStr = $bar.total
+    &"{($bar.progress).align(totalStr.len, ' ')}/{totalStr}"
+  else:
+    let progressStr = $bar.progress
+    &"{progressStr.align(progressStr.len, ' ')}/" & "?".repeat(progressStr.len)
+
+proc timeDisplay(bar: SingleSuruBar): string =
+  if bar.total > 0:
+    &"{bar.elapsed.formatTime}<{bar.eta.formatTime}"
+  else:
+    &"{bar.elapsed.formatTime}"
+
+proc speedDisplay(bar: SingleSuruBar): string =
+  &"{bar.perSecond.formatUnit}/sec"
 
 proc formatDefault(bar: SingleSuruBar): string {.gcsafe.} =
-  let totalStr = $bar.total
-
-  result = &"{(bar.percent*100).int:>3}%" &
-    &"|{bar.barDisplay}|" &
-    &" {($bar.progress).align(totalStr.len, ' ')}/{totalStr}" &
-    &" [{bar.elapsed.formatTime}<{bar.eta.formatTime}," &
-    &" {bar.perSecond.formatUnit}/sec]"
+  result = &"{bar.percentDisplay}|{bar.barDisplay}| {bar.progressDisplay} [{bar.timeDisplay}, {bar.speedDisplay}]"
 
   when defined(suruDebug):
     result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
