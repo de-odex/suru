@@ -9,26 +9,11 @@ iterator temp(): int =
     yield rand(99) + 1
 
 suite "basic":
-  test "changing total test":
-    var sb = initSuruBar()
-    sb.setup(0)
-    for a in temp():
-      if a in 1..50:
-        sb[0].total += 4
-      if sb[0].total != 0 and sb[0].progress >= sb[0].total:
-        break
-      if sb[0].total > 50:
-        break
-      sleep 1000
-      inc sb
-      sb.update(50_000_000)
-    sb.finish()
+  test "iterator":
+    for a in suru(toSeq(1..100).items):
+      sleep 100
 
-  test "iterator test":
-    for a in suru([2398, 981427].items):
-      sleep 1000
-
-  test "multi-bar test":
+  test "multi-bar":
     echo "check if this line is removed by the bars"
     sleep 1000
     var sb = initSuruBar(2)
@@ -43,7 +28,7 @@ suite "basic":
     sb.finish()
     echo "check if this line is removed by the bars"
 
-  test "iterative bar test":
+  test "iterative bar":
     var sb = initSuruBar(2)
     sb.setup(10, 100)
     for a in 1..10:
@@ -56,22 +41,19 @@ suite "basic":
       inc sb[0]
     sb.finish()
 
-  test "overhead test": # use -d:suruDebug to see overhead
+  test "changing total":
     var sb = initSuruBar()
-    sb.setup(10_000_000)
-    for a in 1..10_000_000:
-      # sleep 1
+    sb.setup(0)
+    for a in temp():
+      if a in 1..50:
+        sb[0].total += 4
+      if sb[0].progress >= max(4, sb[0].total):
+        break
+      if sb[0].total > 50:
+        break
+      sleep 1000
       inc sb
-      sb.update(8_000_000)
-    sb.finish()
-
-  test "multi-bar frame time test":
-    var sb = initSuruBar(30)
-    sb.setup((10_000, 30))
-    for a in 1..10_000:
-      # sleep 1
-      inc sb
-      sb.update(8_000_000)
+      sb.update(50_000_000)
     sb.finish()
 
 
@@ -115,22 +97,43 @@ suite "time (eta and speed)":
 
 
 
-when compileOption("threads"):
-  suite "threaded":
-    test "advanced":
-      var sb = initSuruBarThreaded(30)
-      sb.setup((100_000, 30))
-      for a in 1..100_000:
-        sleep 1
-        inc sb
-        sb.update(8_000_000)
-      sb.finish()
+suite "benchmark":
+  test "overhead": # use -d:suruDebug to see overhead
+    var sb = initSuruBar()
+    sb.setup(10_000_000)
+    for a in 1..10_000_000:
+      # sleep 1
+      inc sb
+      sb.update(8_000_000)
+    sb.finish()
 
-    test "overhead": # use -d:suruDebug to see overhead
-      var sb = initSuruBarThreaded()
-      sb.setup(10_000_000)
-      for a in 1..10_000_000:
-        # sleep 1
-        inc sb
-        sb.update(8_000_000)
-      sb.finish()
+  test "multi-bar frame time":
+    var sb = initSuruBar(30)
+    sb.setup((10_000, 30))
+    for a in 1..10_000:
+      # sleep 1
+      inc sb
+      sb.update(8_000_000)
+    sb.finish()
+
+
+
+suite "threaded":
+  test "advanced":
+    var sb = initSuruBarThreaded(30)
+    sb.setup((100_000, 30))
+    for a in 1..100_000:
+      sleep 1
+      inc sb
+      sb.update(8_000_000)
+    sb.finish()
+
+  test "overhead": # use -d:suruDebug to see overhead
+    var sb = initSuruBarThreaded()
+    sb.setup(10_000_000)
+    for a in 1..10_000_000:
+      # sleep 1
+      inc sb
+      sb.update(8_000_000)
+    sb.finish()
+
