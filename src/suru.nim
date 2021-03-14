@@ -403,10 +403,16 @@ macro suru*(forLoop: ForLoopStmt): untyped =
   result = newStmtList()
 
   # first printing of the progress bar
-  result.add quote do:
-    var
-      `bar`: SuruBar = initSuruBar()
+  if compileOption("threads"):
+    result.add quote do:
+      var
+        `bar` = initSuruBarThreaded()
+  else:
+    result.add quote do:
+      var
+        `bar` = initSuruBar()
 
+  result.add quote do:
     when compiles(len(`a`)):
       `bar`.setup(len(`a`))
     else:
