@@ -7,7 +7,7 @@ type
   SingleSuruBar* = object
     length*: int
     progress: int
-    total: int                      # total amount of progresses
+    total*: int                     # total amount of progresses
     progressStat: ExpMovingAverager # moving average of increments to progresses
     timeStat: ExpMovingAverager     # moving average of time difference between progresses
     startTime: MonoTime             # start time of bar
@@ -95,7 +95,6 @@ proc push(mv: var ExpMovingAverager, value: SomeNumber) =
 # getters and format generators
 
 proc progress*(bar: SingleSuruBar): int = bar.progress
-proc total*(bar: SingleSuruBar): int = bar.total
 proc perSecond*(bar: SingleSuruBar): float =
   bar.progressStat.float * (1_000_000_000 / bar.timeStat.float)
 proc elapsed*(bar: SingleSuruBar): float =
@@ -392,15 +391,14 @@ template len[N, T](x: array[N, T]): int =
 template len(arg: untyped): int =
   0
 
-macro suru*(x: ForLoopStmt): untyped =
+macro suru*(forLoop: ForLoopStmt): untyped =
   ## Wraps an iterable for printing a progress bar
   ## WARNING: Does not work for iterators
-  expectKind x, nnkForStmt
+  expectKind forLoop, nnkForStmt
 
   let
     bar = genSym(nskVar, "bar")
-    toIterate = genSym(nskVar, "toIterate")
-    a = x[^2][1]
+    a = forLoop[^2][1] # the "x" in "for i in x"
 
   result = newStmtList()
 
@@ -408,11 +406,13 @@ macro suru*(x: ForLoopStmt): untyped =
   result.add quote do:
     var
       `bar`: SuruBar = initSuruBar()
-      `toIterate` = `a`
 
-    `bar`.setup(len(`toIterate`))
+    when compiles(len(`a`)):
+      `bar`.setup(len(`a`))
+    else:
+      `bar`.setup(0)
 
-  var body = x[^1]
+  var body = forLoop[^1]
   # makes body a statement list to be able to add statements
   if body.kind != nnkStmtList:
     body = newTree(nnkStmtList, body)
@@ -424,11 +424,11 @@ macro suru*(x: ForLoopStmt): untyped =
 
   # re-adds the variables into the new for statement
   var newFor = newTree(nnkForStmt)
-  for i in 0..<x.len-2:
-    newFor.add x[i]
+  for i in 0..<forLoop.len-2:
+    newFor.add forLoop[i]
 
   # transforms suru(...) to '...'
-  newFor.add toIterate
+  newFor.add a
   newFor.add body
   result.add newFor
 
@@ -442,6 +442,29 @@ macro suru*(x: ForLoopStmt): untyped =
 when isMainModule:
   import unittest, os, sequtils, random
   randomize()
+
+  iterator temp(): int =
+    while true:
+      yield rand(99) + 1
+
+  test "changing total test":
+    var sb = initSuruBar()
+    sb.setup(0)
+    for a in temp():
+      if a in 1..50:
+        sb[0].total += 4
+      if sb[0].total != 0 and sb[0].progress >= sb[0].total:
+        break
+      if sb[0].total > 50:
+        break
+      sleep 1000
+      inc sb
+      sb.update(50_000_000)
+    sb.finish()
+
+  test "iterator test":
+    for a in suru([2398, 981427].items):
+      sleep 1000
 
   test "random time test":
     for a in suru(0..<100):
