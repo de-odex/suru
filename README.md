@@ -88,16 +88,15 @@ import suru
 var bar: SuruBar = initSuruBar()
 # pass in a positive integer if you want to change the bar length
 
-bar.setup(3) # the length of the iterable
-             # or how many iterations will happen
+bar.setup(3) # how many iterations will happen
              # pass 0 for an unknown length
 
 for a in [20, 90, 120]:
   # do something
 
   inc bar
-  bar.update(50_000_000) # in nanoseconds, so the literal is 50 ms
-  # you can change the delay to any delay you want
+  bar.update(50_000_000) # in nanoseconds, so the delay is 50 ms
+  # will be clamped to at least 1 ms
 
 bar.finish()
 ```
@@ -110,9 +109,10 @@ the order bears no meaning
 - [x] multi-bar support
 - [ ] formatting support
   - [ ] ascii-only version
-  - [ ] custom text
+  - [x] custom text
 - [ ] stable api
-- [ ] iterator support
+- [x] iterator support
+  - NOTE: requires manual setting of # of total iterations via `bar.total = anInt`; this also unfortunately implies incompatibility with the `for i in suru(...): ...` syntax
 
 Dependencies
 ------------
