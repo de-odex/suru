@@ -117,8 +117,8 @@ proc barDisplay*[N](
   ): string =
   let
     percentage      = bar.percent
-    shadedCount     = floor(percentage * bar.length.float).int
-    fractionalIndex =     ((percentage * bar.length.float * fractionals.len.float).int mod fractionals.len) - 1
+    shadedCount     = min(floor(percentage * bar.length.float).int, bar.length)
+    fractionalIndex =         ((percentage * bar.length.float * fractionals.len.float).int mod fractionals.len) - 1
     unshadedCount   = bar.length - shadedCount - min(fractionalIndex + 1, 1)
 
   result = newStringOfCap(bar.length * 4)
