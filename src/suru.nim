@@ -219,10 +219,10 @@ proc inc*(bar: var SingleSuruBar, y: Natural = 1) =
   ## Increments the bar progress
   bar.`progress=`(bar.progress + y)
 
-proc inc*(sb: var SuruBar) =
+proc inc*(sb: var SuruBar, y: Natural = 1) =
   ## Increments the bar progress
   for bar in sb.mitems:
-    inc bar
+    inc bar, y
 
 proc `$`(bar: SingleSuruBar): string =
   result = bar.format(bar)
@@ -341,10 +341,10 @@ when compileOption("threads"):
   proc `[]`*(sbc: ptr SuruBarController, index: Natural): var SingleSuruBar =
     sbc[].bar.bars[index]
 
-  proc inc*(sbc: ptr SuruBarController) =
+  proc inc*(sbc: ptr SuruBarController, y: Natural = 1) =
     ## Increments the bar progress
     for bar in sbc[].bar.mitems:
-      inc bar
+      inc bar, y
 
   proc moveCursor(sbc: ptr SuruBarController, index: int = 0) =
     let difference = index - sbc[].bar.currentIndex
