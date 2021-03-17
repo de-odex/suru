@@ -11,7 +11,7 @@ type
     progressStat: ExpMovingAverager # moving average of increments to progresses
     timeStat: ExpMovingAverager     # moving average of time difference between progresses
     startTime: MonoTime             # start time of bar
-    lastIncrement: MonoTime         # last time bar was incremented, used for timeStat
+    lastChange: MonoTime         # last time bar was changed, used for timeStat
     currentAccess: MonoTime
     lastAccess: MonoTime
     format: proc(bar: SingleSuruBar): string {.gcsafe.}
@@ -100,8 +100,19 @@ proc perSecond*(bar: SingleSuruBar): float =
 proc elapsed*(bar: SingleSuruBar): float =
   (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
 proc eta*(bar: SingleSuruBar): float =
-  (bar.total - bar.progress).float / bar.perSecond - ((bar.currentAccess.ticks - bar.lastIncrement.ticks).float / 1_000_000_000)
+  (bar.total - bar.progress).float / bar.perSecond - ((bar.currentAccess.ticks - bar.lastChange.ticks).float / 1_000_000_000)
 proc percent*(bar: SingleSuruBar): float = bar.progress / bar.total
+
+proc `progress=`*(bar: var SingleSuruBar, progress: int) =
+  let lastProgress = bar.progress
+  bar.progress = progress
+  let newTime = getMonoTime()
+  bar.timeStat.push (newTime.ticks - bar.lastChange.ticks).int
+  bar.lastChange = newTime
+  bar.progressStat.push bar.progress - lastProgress
+
+proc `format=`*(bar: var SingleSuruBar, format: proc(bar: SingleSuruBar): string {.gcsafe.}) =
+  bar.format = format
 
 proc percentDisplay(bar: SingleSuruBar): string =
   if bar.total > 0:
@@ -159,9 +170,6 @@ proc formatDefault(bar: SingleSuruBar): string {.gcsafe.} =
   when defined(suruDebug):
     result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
 
-proc `format=`*(bar: var SingleSuruBar, format: proc(bar: SingleSuruBar): string {.gcsafe.}) =
-  bar.format = format
-
 # main suru bar code
 
 proc initSingleSuruBar*(length: int): SingleSuruBar =
@@ -209,12 +217,7 @@ proc `[]`*(bar: var SuruBar, index: Natural): var SingleSuruBar =
 
 proc inc*(bar: var SingleSuruBar, y: Natural = 1) =
   ## Increments the bar progress
-  let lastProgress = bar.progress
-  inc bar.progress, y
-  let newTime = getMonoTime()
-  bar.timeStat.push (newTime.ticks - bar.lastIncrement.ticks).int
-  bar.lastIncrement = newTime
-  bar.progressStat.push bar.progress - lastProgress
+  bar.`progress=`(bar.progress + y)
 
 proc inc*(sb: var SuruBar) =
   ## Increments the bar progress
@@ -250,7 +253,7 @@ proc reset*(bar: var SingleSuruBar, iterableLength: int) =
   bar.progressStat = 0.ExpMovingAverager
   bar.timeStat = 0.ExpMovingAverager
   bar.startTime = now
-  bar.lastIncrement = now
+  bar.lastChange = now
   bar.currentAccess = now
   bar.lastAccess = now
 
@@ -269,7 +272,7 @@ proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
     sb[index].startTime = getMonoTime()
     sb[index].currentAccess = sb[index].startTime
     sb[index].lastAccess = sb[index].startTime
-    sb[index].lastIncrement = sb[index].startTime
+    sb[index].lastChange = sb[index].startTime
     sb[index].timeStat.push 0
     sb[index].progressStat.push 0
     sb.moveCursor(index)
