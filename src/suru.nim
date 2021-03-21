@@ -170,21 +170,44 @@ proc formatDefault(ssb: SingleSuruBar): string {.gcsafe.} =
   when defined(suruDebug):
     result &= " " & ((getMonoTime().ticks - ssb.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
 
-# main suru bar code
+# single suru bar
 
 proc initSingleSuruBar*(length: int): SingleSuruBar =
   SingleSuruBar(
     length: length,
-    #progress: 0,
-      #total: 0,
-    #progressStat: 0.ExpMovingAverager,
-    #timeStat: 0.ExpMovingAverager,
-    #startTime: MonoTime(),
-    #lastIncrement: MonoTime(),
-    #currentAccess: MonoTime(),
-    #lastAccess: MonoTime(),
     format: formatDefault,
   )
+
+proc inc*(ssb: var SingleSuruBar, y: Natural = 1) =
+  ## Increments the bar progress
+  ssb.`progress=`(ssb.progress + y)
+
+proc `$`(ssb: SingleSuruBar): string =
+  result = ssb.format(ssb)
+
+proc show(ssb: var SingleSuruBar) =
+  ## Shows the bar in a formatted style.
+  when defined(windows):
+    stdout.eraseLine()
+    stdout.write($ssb)
+  else:
+    stdout.write("\e[2K", $ssb)
+  stdout.flushFile()
+  stdout.setCursorXPos(0)
+
+proc reset*(ssb: var SingleSuruBar, iterableLength: int) =
+  ## Resets the bar to an empty bar, not including its length and total.
+  let now = getMonoTime()
+  ssb.progress = 0
+  ssb.total = iterableLength
+  ssb.progressStat = 0.ExpMovingAverager
+  ssb.timeStat = 0.ExpMovingAverager
+  ssb.startTime = now
+  ssb.lastChange = now
+  ssb.currentAccess = now
+  ssb.lastAccess = now
+
+# suru bar
 
 proc initSuruBar*(bars: int = 1): SuruBar =
   ## Creates a SuruBar with the given amount of bars
@@ -209,27 +232,16 @@ iterator pairs*(sb: SuruBar): (int, SingleSuruBar) =
     yield (index, sb.bars[index])
     inc(index)
 
-proc `format=`*(sb: var SuruBar, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
-  for bar in sb.mitems:
-    bar.format = format
-
 proc `[]`*(sb: SuruBar, index: Natural): SingleSuruBar =
   sb.bars[index]
 
 proc `[]`*(sb: var SuruBar, index: Natural): var SingleSuruBar =
   sb.bars[index]
 
-proc inc*(ssb: var SingleSuruBar, y: Natural = 1) =
-  ## Increments the bar progress
-  ssb.`progress=`(ssb.progress + y)
-
 proc inc*(sb: var SuruBar, y: Natural = 1) =
   ## Increments the bar progress
   for bar in sb.mitems:
     inc bar, y
-
-proc `$`(ssb: SingleSuruBar): string =
-  result = ssb.format(ssb)
 
 proc moveCursor(sb: var SuruBar, index: int = 0) =
   let difference = index - sb.currentIndex
@@ -239,27 +251,9 @@ proc moveCursor(sb: var SuruBar, index: int = 0) =
     stdout.cursorDown(abs(difference))
   sb.currentIndex = index
 
-proc show(ssb: var SingleSuruBar) =
-  ## Shows the bar in a formatted style.
-  when defined(windows):
-    stdout.eraseLine()
-    stdout.write($ssb)
-  else:
-    stdout.write("\e[2K", $ssb)
-  stdout.flushFile()
-  stdout.setCursorXPos(0)
-
-proc reset*(ssb: var SingleSuruBar, iterableLength: int) =
-  ## Resets the bar to an empty bar, not including its length and total.
-  let now = getMonoTime()
-  ssb.progress = 0
-  ssb.total = iterableLength
-  ssb.progressStat = 0.ExpMovingAverager
-  ssb.timeStat = 0.ExpMovingAverager
-  ssb.startTime = now
-  ssb.lastChange = now
-  ssb.currentAccess = now
-  ssb.lastAccess = now
+proc `format=`*(sb: var SuruBar, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
+  for bar in sb.mitems:
+    bar.format = format
 
 proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
   # call this immediately before your loop
@@ -349,6 +343,10 @@ when compileOption("threads"):
     ## Increments the bar progress
     for bar in sbc[].bar.mitems:
       inc bar, y
+
+  proc `format=`*(sbc: ptr SuruBarController, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
+    for bar in sbc[].mitems:
+      bar.format = format
 
   proc moveCursor(sbc: ptr SuruBarController, index: int = 0) =
     let difference = index - sbc[].bar.currentIndex
