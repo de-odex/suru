@@ -14,7 +14,7 @@ type
     lastChange: MonoTime         # last time bar was changed, used for timeStat
     currentAccess: MonoTime
     lastAccess: MonoTime
-    format: proc(bar: SingleSuruBar): string {.gcsafe.}
+    format: proc(ssb: SingleSuruBar): string {.gcsafe.}
   SuruBar* = object
     bars: seq[SingleSuruBar]
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
@@ -94,81 +94,81 @@ proc push(mv: var ExpMovingAverager, value: SomeNumber) =
 
 # getters and format generators
 
-proc progress*(bar: SingleSuruBar): int = bar.progress
-proc perSecond*(bar: SingleSuruBar): float =
-  bar.progressStat.float * (1_000_000_000 / bar.timeStat.float)
-proc elapsed*(bar: SingleSuruBar): float =
-  (bar.currentAccess.ticks - bar.startTime.ticks).float / 1_000_000_000
-proc eta*(bar: SingleSuruBar): float =
-  (bar.total - bar.progress).float / bar.perSecond - ((bar.currentAccess.ticks - bar.lastChange.ticks).float / 1_000_000_000)
-proc percent*(bar: SingleSuruBar): float = bar.progress / bar.total
+proc progress*(ssb: SingleSuruBar): int = ssb.progress
+proc perSecond*(ssb: SingleSuruBar): float =
+  ssb.progressStat.float * (1_000_000_000 / ssb.timeStat.float)
+proc elapsed*(ssb: SingleSuruBar): float =
+  (ssb.currentAccess.ticks - ssb.startTime.ticks).float / 1_000_000_000
+proc eta*(ssb: SingleSuruBar): float =
+  (ssb.total - ssb.progress).float / ssb.perSecond - ((ssb.currentAccess.ticks - ssb.lastChange.ticks).float / 1_000_000_000)
+proc percent*(ssb: SingleSuruBar): float = ssb.progress / ssb.total
 
-proc `progress=`*(bar: var SingleSuruBar, progress: int) =
-  let lastProgress = bar.progress
-  bar.progress = progress
+proc `progress=`*(ssb: var SingleSuruBar, progress: int) =
+  let lastProgress = ssb.progress
+  ssb.progress = progress
   let newTime = getMonoTime()
-  bar.timeStat.push (newTime.ticks - bar.lastChange.ticks).int
-  bar.lastChange = newTime
-  bar.progressStat.push bar.progress - lastProgress
+  ssb.timeStat.push (newTime.ticks - ssb.lastChange.ticks).int
+  ssb.lastChange = newTime
+  ssb.progressStat.push ssb.progress - lastProgress
 
-proc `format=`*(bar: var SingleSuruBar, format: proc(bar: SingleSuruBar): string {.gcsafe.}) =
-  bar.format = format
+proc `format=`*(ssb: var SingleSuruBar, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
+  ssb.format = format
 
-proc percentDisplay(bar: SingleSuruBar): string =
-  if bar.total > 0:
-    &"{(bar.percent*100).int:>3}%"
+proc percentDisplay(ssb: SingleSuruBar): string =
+  if ssb.total > 0:
+    &"{(ssb.percent*100).int:>3}%"
   else:
     " ??%"
 
 proc barDisplay*[N](
-    bar: SingleSuruBar,
+    ssb: SingleSuruBar,
     shaded: string,
     unshaded: string,
     fractionals: array[N, string],
   ): string =
   let
-    percentage      = bar.percent
-    shadedCount     = min(floor(percentage * bar.length.float).int, bar.length)
-    fractionalIndex =         ((percentage * bar.length.float * fractionals.len.float).int mod fractionals.len) - 1
-    unshadedCount   = bar.length - shadedCount - min(fractionalIndex + 1, 1)
+    percentage      = ssb.percent
+    shadedCount     = min(floor(percentage * ssb.length.float).int, ssb.length)
+    fractionalIndex =         ((percentage * ssb.length.float * fractionals.len.float).int mod fractionals.len) - 1
+    unshadedCount   = ssb.length - shadedCount - min(fractionalIndex + 1, 1)
 
-  result = newStringOfCap(bar.length * 4)
+  result = newStringOfCap(ssb.length * 4)
   for _ in 0..<shadedCount:
     result &= shaded
-  if shadedCount < bar.length:
-    if shadedCount + unshadedCount != bar.length:
+  if shadedCount < ssb.length:
+    if shadedCount + unshadedCount != ssb.length:
       result &= fractionals[fractionalIndex]
     for _ in 0..<unshadedCount:
       result &= unshaded
 
-proc barDisplay(bar: SingleSuruBar): string =
-  if bar.total > 0:
-    bar.barDisplay("█", " ", ["▏", "▎", "▍", "▌", "▋", "▊", "▉"])
+proc barDisplay(ssb: SingleSuruBar): string =
+  if ssb.total > 0:
+    ssb.barDisplay("█", " ", ["▏", "▎", "▍", "▌", "▋", "▊", "▉"])
   else:
-    "░".repeat(bar.length)
+    "░".repeat(ssb.length)
 
-proc progressDisplay(bar: SingleSuruBar): string =
-  if bar.total > 0:
-    let totalStr = $bar.total
-    &"{($bar.progress).align(totalStr.len, ' ')}/{totalStr}"
+proc progressDisplay(ssb: SingleSuruBar): string =
+  if ssb.total > 0:
+    let totalStr = $ssb.total
+    &"{($ssb.progress).align(totalStr.len, ' ')}/{totalStr}"
   else:
-    let progressStr = $bar.progress
+    let progressStr = $ssb.progress
     &"{progressStr.align(progressStr.len, ' ')}/" & "?".repeat(progressStr.len)
 
-proc timeDisplay(bar: SingleSuruBar): string =
-  if bar.total > 0:
-    &"{bar.elapsed.formatTime}<{bar.eta.formatTime}"
+proc timeDisplay(ssb: SingleSuruBar): string =
+  if ssb.total > 0:
+    &"{ssb.elapsed.formatTime}<{ssb.eta.formatTime}"
   else:
-    &"{bar.elapsed.formatTime}"
+    &"{ssb.elapsed.formatTime}"
 
-proc speedDisplay(bar: SingleSuruBar): string =
-  &"{bar.perSecond.formatUnit}/sec"
+proc speedDisplay(ssb: SingleSuruBar): string =
+  &"{ssb.perSecond.formatUnit}/sec"
 
-proc formatDefault(bar: SingleSuruBar): string {.gcsafe.} =
-  result = &"{bar.percentDisplay}|{bar.barDisplay}| {bar.progressDisplay} [{bar.timeDisplay}, {bar.speedDisplay}]"
+proc formatDefault(ssb: SingleSuruBar): string {.gcsafe.} =
+  result = &"{ssb.percentDisplay}|{ssb.barDisplay}| {ssb.progressDisplay} [{ssb.timeDisplay}, {ssb.speedDisplay}]"
 
   when defined(suruDebug):
-    result &= " " & ((getMonoTime().ticks - bar.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
+    result &= " " & ((getMonoTime().ticks - ssb.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
 
 # main suru bar code
 
@@ -209,23 +209,23 @@ iterator pairs*(sb: SuruBar): (int, SingleSuruBar) =
     yield (index, sb.bars[index])
     inc(index)
 
-proc `[]`*(bar: SuruBar, index: Natural): SingleSuruBar =
-  bar.bars[index]
+proc `[]`*(sb: SuruBar, index: Natural): SingleSuruBar =
+  sb.bars[index]
 
-proc `[]`*(bar: var SuruBar, index: Natural): var SingleSuruBar =
-  bar.bars[index]
+proc `[]`*(sb: var SuruBar, index: Natural): var SingleSuruBar =
+  sb.bars[index]
 
-proc inc*(bar: var SingleSuruBar, y: Natural = 1) =
+proc inc*(ssb: var SingleSuruBar, y: Natural = 1) =
   ## Increments the bar progress
-  bar.`progress=`(bar.progress + y)
+  ssb.`progress=`(ssb.progress + y)
 
 proc inc*(sb: var SuruBar, y: Natural = 1) =
   ## Increments the bar progress
   for bar in sb.mitems:
     inc bar, y
 
-proc `$`(bar: SingleSuruBar): string =
-  result = bar.format(bar)
+proc `$`(ssb: SingleSuruBar): string =
+  result = ssb.format(ssb)
 
 proc moveCursor(sb: var SuruBar, index: int = 0) =
   let difference = index - sb.currentIndex
@@ -235,27 +235,27 @@ proc moveCursor(sb: var SuruBar, index: int = 0) =
     stdout.cursorDown(abs(difference))
   sb.currentIndex = index
 
-proc show(bar: var SingleSuruBar) =
-  ## Shows the sb in a formatted style.
+proc show(ssb: var SingleSuruBar) =
+  ## Shows the bar in a formatted style.
   when defined(windows):
     stdout.eraseLine()
-    stdout.write($bar)
+    stdout.write($ssb)
   else:
-    stdout.write("\e[2K", $bar)
+    stdout.write("\e[2K", $ssb)
   stdout.flushFile()
   stdout.setCursorXPos(0)
 
-proc reset*(bar: var SingleSuruBar, iterableLength: int) =
+proc reset*(ssb: var SingleSuruBar, iterableLength: int) =
   ## Resets the bar to an empty bar, not including its length and total.
   let now = getMonoTime()
-  bar.progress = 0
-  bar.total = iterableLength
-  bar.progressStat = 0.ExpMovingAverager
-  bar.timeStat = 0.ExpMovingAverager
-  bar.startTime = now
-  bar.lastChange = now
-  bar.currentAccess = now
-  bar.lastAccess = now
+  ssb.progress = 0
+  ssb.total = iterableLength
+  ssb.progressStat = 0.ExpMovingAverager
+  ssb.timeStat = 0.ExpMovingAverager
+  ssb.startTime = now
+  ssb.lastChange = now
+  ssb.currentAccess = now
+  ssb.lastAccess = now
 
 proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
   # call this immediately before your loop
