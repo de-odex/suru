@@ -1,6 +1,6 @@
 import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode, strformat
 {.experimental: "forLoopMacros".}
-when compileOption("threads"): import os, locks
+when compileOption("threads"): import os
 
 type
   ExpMovingAverager = distinct float
@@ -209,6 +209,10 @@ iterator pairs*(sb: SuruBar): (int, SingleSuruBar) =
     yield (index, sb.bars[index])
     inc(index)
 
+proc `format=`*(sb: var SuruBar, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
+  for bar in sb.mitems:
+    bar.format = format
+
 proc `[]`*(sb: SuruBar, index: Natural): SingleSuruBar =
   sb.bars[index]
 
@@ -396,32 +400,83 @@ template len(arg: untyped): int =
 
 macro suru*(forLoop: ForLoopStmt): untyped =
   ## Wraps an iterable for printing a progress bar
-  ## WARNING: Does not work for iterators
   expectKind forLoop, nnkForStmt
 
   let
-    bar = genSym(nskVar, "bar")
-    a = forLoop[^2][1] # the "x" in "for i in x"
+    toIterate = forLoop[^2][1] # the "x" in "for i in x"
+  
+  var
+    preLoop = newStmtList()
+    body = forLoop[^1]
+    newFor = newTree(nnkForStmt)
+    postLoop = newStmtList()
 
-  result = newStmtList()
+  var
+    bar = genSym(nskVar, "bar")
+    barSet: bool
+    delayVal = quote do: 50_000_000
+    threaded: bool
+    formatVal: NimNode
+    totalVal: NimNode
+
+  # handle settings
+  if forLoop[^2].len > 2:
+    let settings = forLoop[^2][2..^1]
+    for setting in settings:
+      setting.expectKind(nnkExprEqExpr)
+      setting[0].expectKind(nnkIdent)
+
+      # threaded
+      # ? format: not really needed if barIdent...
+      # barIdent: for manual incrementing
+      #   will not disable update call, only the increment call
+      # delay
+      # ? total: not needed if barIdent...
+
+      if setting[0].eqIdent "threaded":
+        setting[1].expectKind(nnkIdent)
+        if setting[1].eqIdent "true":
+          threaded = true
+        elif setting[1].eqIdent "true":
+          discard
+        else:
+          error("invalid value for setting value (bool expected): " & $setting[1], setting[1])
+      elif setting[0].eqIdent "format":
+        formatVal = setting[1]
+      elif setting[0].eqIdent "total":
+        totalVal = setting[1]
+      elif setting[0].eqIdent "barIdent":
+        setting[1].expectKind(nnkIdent)
+        bar = setting[1]
+      elif setting[0].eqIdent "delay":
+        delayVal = setting[1]
+      else:
+        error("invalid value for setting: " & $setting[0], setting)
 
   # first printing of the progress bar
-  if compileOption("threads"):
-    result.add quote do:
+  if threaded:
+    preLoop.add quote do:
       var
         `bar` = initSuruBarThreaded()
   else:
-    result.add quote do:
+    preLoop.add quote do:
       var
         `bar` = initSuruBar()
 
-  result.add quote do:
-    when compiles(len(`a`)):
-      `bar`.setup(len(`a`))
-    else:
-      `bar`.setup(0)
+  if not formatVal.isNil:
+    preLoop.add quote do:
+      `bar`.format = `formatVal`
 
-  var body = forLoop[^1]
+  if not totalVal.isNil:
+    preLoop.add quote do:
+      `bar`.setup(`totalVal`)
+  else:
+    preLoop.add quote do:
+      when compiles(len(`toIterate`)):
+        `bar`.setup(len(`toIterate`))
+      else:
+        `bar`.setup(0)
+
   # makes body a statement list to be able to add statements
   if body.kind != nnkStmtList:
     body = newTree(nnkStmtList, body)
@@ -429,22 +484,24 @@ macro suru*(forLoop: ForLoopStmt): untyped =
   # in-loop printing of the progress bar
   body.add quote do:
     inc `bar`
-    `bar`.update(50_000_000)
+    `bar`.update(`delayVal`)
 
   # re-adds the variables into the new for statement
-  var newFor = newTree(nnkForStmt)
   for i in 0..<forLoop.len-2:
     newFor.add forLoop[i]
 
   # transforms suru(...) to '...'
-  newFor.add a
+  newFor.add toIterate
   newFor.add body
-  result.add newFor
+
+  postLoop.add quote do:
+    `bar`.finish()
 
   # wraps the whole macro in a block to create a new scope
   # also includes final print of the bar
   result = quote do:
     block:
-      `result`
-      `bar`.finish()
+      `preLoop`
+      `newFor`
+      `postLoop`
 
