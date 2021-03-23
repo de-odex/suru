@@ -11,7 +11,7 @@ type
     progressStat: ExpMovingAverager # moving average of increments to progresses
     timeStat: ExpMovingAverager     # moving average of time difference between progresses
     startTime: MonoTime             # start time of bar
-    lastChange: MonoTime         # last time bar was changed, used for timeStat
+    lastChange: MonoTime            # last time bar was changed, used for timeStat
     currentAccess: MonoTime
     lastAccess: MonoTime
     format: proc(ssb: SingleSuruBar): string {.gcsafe.}
@@ -235,7 +235,7 @@ when compileOption("threads"):
       inc bar, y
 
   proc `format=`*(sbc: ptr SuruBarController, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
-    for bar in sbc[].mitems:
+    for bar in sbc.mitems:
       bar.format = format
 
   proc moveCursor(sbc: ptr SuruBarController, index: int = 0) =
