@@ -2,7 +2,7 @@ import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode
 import ../suru
 
 const
-  prefixes = [
+  prefixes* = [
     -8: "y", "z", "a", "f", "p", "n", "u", "m",
     " ",
     "k", "M", "G", "T", "P", "E", "Z", "Y"
