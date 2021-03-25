@@ -55,11 +55,24 @@ proc formatTime*(secs: SomeFloat): string =
     let secs = secs.int
     result = ($(secs div 60)).align(2, '0') & ":" & ($(secs mod 60)).align(2, '0')
 
-proc percentDisplay*(ssb: SingleSuruBar): string =
-  if ssb.total > 0:
-    &"{(ssb.percent*100).int:>3}%"
-  else:
-    " ??%"
+
+proc barDisplay*(
+    ssb: SingleSuruBar,
+    shaded: string,
+    unshaded: string,
+    fractionals: array[0, string],
+  ): string =
+  let
+    percentage = ssb.percent
+    shadedCount = min(floor(percentage * ssb.length.float).int, ssb.length)
+    unshadedCount = ssb.length - shadedCount
+
+  result = newStringOfCap(ssb.length * 4)
+  for _ in 0..<shadedCount:
+    result &= shaded
+  if shadedCount < ssb.length:
+    for _ in 0..<unshadedCount:
+      result &= unshaded
 
 proc barDisplay*[N: static int](
     ssb: SingleSuruBar,
@@ -67,62 +80,18 @@ proc barDisplay*[N: static int](
     unshaded: string,
     fractionals: array[N, string],
   ): string =
-  when N == 0:
-    let
-      percentage      = ssb.percent
-      shadedCount     = min(floor(percentage * ssb.length.float).int, ssb.length)
-      unshadedCount   = ssb.length - shadedCount
+  let
+    percentage = ssb.percent
+    shadedCount = min(floor(percentage * ssb.length.float).int, ssb.length)
+    fractionalIndex = ((percentage * ssb.length.float * fractionals.len.float).int mod fractionals.len) - 1
+    unshadedCount = ssb.length - shadedCount - min(fractionalIndex + 1, 1)
 
-    result = newStringOfCap(ssb.length * 4)
-    for _ in 0..<shadedCount:
-      result &= shaded
-    if shadedCount < ssb.length:
-      for _ in 0..<unshadedCount:
-        result &= unshaded
-  else:
-    let
-      percentage      = ssb.percent
-      shadedCount     = min(floor(percentage * ssb.length.float).int, ssb.length)
-      fractionalIndex =         ((percentage * ssb.length.float * fractionals.len.float).int mod fractionals.len) - 1
-      unshadedCount   = ssb.length - shadedCount - min(fractionalIndex + 1, 1)
-
-    result = newStringOfCap(ssb.length * 4)
-    for _ in 0..<shadedCount:
-      result &= shaded
-    if shadedCount < ssb.length:
-      if shadedCount + unshadedCount != ssb.length:
-        result &= fractionals[fractionalIndex]
-      for _ in 0..<unshadedCount:
-        result &= unshaded
-
-proc barDisplay*(ssb: SingleSuruBar): string =
-  if ssb.total > 0:
-    #ssb.barDisplay("█", " ", ["▏", "▎", "▍", "▌", "▋", "▊", "▉"])
-    ssb.barDisplay("█", "░", [])
-  else:
-    "░".repeat(ssb.length)
-
-proc progressDisplay*(ssb: SingleSuruBar): string =
-  if ssb.total > 0:
-    let totalStr = $ssb.total
-    &"{($ssb.progress).align(totalStr.len, ' ')}/{totalStr}"
-  else:
-    let progressStr = $ssb.progress
-    &"{progressStr.align(progressStr.len, ' ')}/" & "?".repeat(progressStr.len)
-
-proc timeDisplay*(ssb: SingleSuruBar): string =
-  if ssb.total > 0:
-    &"{ssb.elapsed.formatTime}<{ssb.eta.formatTime}"
-  else:
-    &"{ssb.elapsed.formatTime}"
-
-proc speedDisplay*(ssb: SingleSuruBar): string =
-  &"{ssb.perSecond.formatUnit}/sec"
-
-proc format*(ssb: SingleSuruBar): string {.gcsafe.} =
-  #result = &"{ssb.percentDisplay}|{ssb.barDisplay}| {ssb.progressDisplay} [{ssb.timeDisplay}, {ssb.speedDisplay}]"
-  result = &"{ssb.percentDisplay} {ssb.barDisplay} {ssb.progressDisplay} [{ssb.timeDisplay}, {ssb.speedDisplay}]"
-
-  when defined(suruDebug):
-    result &= " " & ((getMonoTime().ticks - ssb.currentAccess.ticks).float/1_000).formatFloat(ffDecimal, 2) & "us overhead"
+  result = newStringOfCap(ssb.length * 4)
+  for _ in 0..<shadedCount:
+    result &= shaded
+  if shadedCount < ssb.length:
+    if shadedCount + unshadedCount != ssb.length:
+      result &= fractionals[fractionalIndex]
+    for _ in 0..<unshadedCount:
+      result &= unshaded
 
