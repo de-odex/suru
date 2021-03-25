@@ -55,7 +55,6 @@ proc barDisplay*(
     ssb: SingleSuruBar,
     shaded: string,
     unshaded: string,
-    fractionals: array[0, string],
   ): string =
   let
     percentage = ssb.percent
