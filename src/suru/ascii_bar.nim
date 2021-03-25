@@ -1,7 +1,7 @@
-import ../suru
-import ./format
 import strformat
 import strutils
+import ../suru
+import ./format
 
 proc percentDisplay*(ssb: SingleSuruBar): string =
   if ssb.total > 0:
@@ -11,7 +11,7 @@ proc percentDisplay*(ssb: SingleSuruBar): string =
 
 proc barDisplay*(ssb: SingleSuruBar): string =
   if ssb.total > 0:
-    ssb.barDisplay("=", " ", [">"])
+    ssb.barDisplay("=", " ", [">"], alwaysShow = true)
   else:
     "#".repeat(ssb.length)
 

@@ -1,7 +1,7 @@
-import ../suru
-import ./format
 import strformat
 import strutils
+import ../suru
+import ./format
 
 proc percentDisplay*(ssb: SingleSuruBar): string =
   if ssb.total > 0:

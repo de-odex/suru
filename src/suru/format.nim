@@ -73,17 +73,22 @@ proc barDisplay*[N: static int](
     shaded: string,
     unshaded: string,
     fractionals: array[N, string],
+    alwaysShow: bool = false,
   ): string =
   let
     percentage = ssb.percent
 
     shadedCount = min(floor(percentage * ssb.length.float).int, ssb.length)
 
-    fractionalIndex = ((percentage * ssb.length.float * (fractionals.len + 1).float).int mod (fractionals.len + 1)) - 1
-    # -1 when no fractional to include
-    # 0..n when fractional of index n should be included
+    fractionalIndex = block:
+      if alwaysShow:
+        ((percentage * ssb.length.float * fractionals.len.float).int mod fractionals.len)
+      else:
+        ((percentage * ssb.length.float * (fractionals.len + 1).float).int mod (fractionals.len + 1)) - 1
+        # -1 when no fractional to include
+        # 0..n when fractional of index n should be included
 
-    unshadedCount = ssb.length - shadedCount - min(fractionalIndex + 1, 1)
+    unshadedCount = ssb.length - shadedCount - (if alwaysShow: 1 else: min(fractionalIndex + 1, 1))
     # length - shaded - (if no fractional, 0, else, 1)
 
   result = newStringOfCap(ssb.length * 4)
