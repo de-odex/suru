@@ -1,4 +1,4 @@
-import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode, strformat
+import macros, std/monotimes, times, math, strutils, unicode, strformat
 import ../suru
 
 const
@@ -8,27 +8,22 @@ const
     "k", "M", "G", "T", "P", "E", "Z", "Y"
   ]
 
-proc fitMagnitude(n: float, magnitude: int): (float, int) =
-  if n > 1000:
-    result = (n / 1000, magnitude + 1)
-  elif n < 0.1:
-    result = (n * 1000, magnitude - 1)
-  else:
-    result = (n, magnitude)
-
-proc fittedMagnitude*(n: float): (float, int) =
+proc fitMagnitude*(n: float): tuple[n: float, magnitude: int] =
   result = (n, 0)
-  var new = fitMagnitude(result[0], result[1])
-  while result != new and (new[1] <= prefixes.high and new[1] >= prefixes.low):
-    result = new
-    new = fitMagnitude(result[0], result[1])
+  while (result.n < 0.1 or result.n > 1000) and (result.magnitude != prefixes.high or result.magnitude != prefixes.low):
+    if result.n > 1000:
+      result.n /= 1000
+      inc result.magnitude
+    elif n < 0.1:
+      result.n *= 1000
+      dec result.magnitude
 
 proc formatUnit*(n: float): string =
   case n.classify
   of fcNan:
     return static: "??".align(7, ' ')
   of {fcNormal, fcSubnormal, fcZero, fcNegZero}:
-    let (n, mag) = fittedMagnitude(n)
+    let (n, mag) = fitMagnitude(n)
     if mag == prefixes.high and n > 99:
       result = static: ">99.00Y".align(7, ' ')
     elif mag == prefixes.low and n < 0.01:
