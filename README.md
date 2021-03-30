@@ -5,7 +5,7 @@ A tqdm-style progress bar in Nim
 
 ![asciicast](https://raw.githubusercontent.com/de-odex/suru/master/demo.gif)
 
-the demo above uses this code:
+the demo above uses this code (note that the api has since changed, refer to tests/tests.nim for updated code):
 ```nim
 import unittest, os, sequtils, random
 randomize()
@@ -70,7 +70,6 @@ test "multi-bar test":
 
 Usage
 -----
-
 suru can be used in two ways:
 ```nim
 import suru
@@ -86,20 +85,28 @@ or
 import suru
 
 var bar: SuruBar = initSuruBar()
-# pass in a positive integer if you want to change the bar length
+# pass in a positive integer if you want to change how many bars there are
 
-bar.setup(3) # how many iterations will happen
-             # pass 0 for an unknown length
+bar[0].total = 3 # number of iterations
+
+bar.setup()
 
 for a in [20, 90, 120]:
   # do something
 
-  inc bar
+  inc bar # can be changed to increment n amount at a time
+  # will increment all bars
+  # use inc bar[0] if you only want to increment the first bar
+
   bar.update(50_000_000) # in nanoseconds, so the delay is 50 ms
   # will be clamped to at least 1 ms
 
 bar.finish()
 ```
+
+API Reference
+-------------
+TODO :(
 
 Major To-do
 -----------
@@ -107,15 +114,26 @@ the order bears no meaning
 
 - [ ] thread-safe
 - [x] multi-bar support
-- [ ] formatting support
-  - [ ] ascii-only version
+- [x] formatting support
+  - [x] ascii-only version
   - [x] custom text
 - [ ] stable api
+  - might come soon, i need more opinions on the current api
 - [x] iterator support
-  - NOTE: requires manual setting of # of total iterations via `bar.total = anInt`; this also unfortunately implies incompatibility with the `for i in suru(...): ...` syntax
+- [ ] unicode checks
+- [ ] echoing within the loop
+- [ ] recursive support for suru macro
+  - ex: (this should work like manually making a two-bar SuruBar)
+```nim
+import suru
+
+for a in suru(...):
+  # do something
+  for b in suru(...):
+    # do another thing
+```
 
 Dependencies
 ------------
-
 suru has no external Nim dependencies
 
