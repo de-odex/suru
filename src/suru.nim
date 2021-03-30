@@ -85,11 +85,10 @@ proc show(ssb: var SingleSuruBar) =
   stdout.flushFile()
   stdout.setCursorXPos(0)
 
-proc reset*(ssb: var SingleSuruBar, iterableLength: int) =
+proc reset*(ssb: var SingleSuruBar) =
   ## Resets the bar to an empty bar, not including its length and total.
   let now = getMonoTime()
   ssb.progress = 0
-  ssb.total = iterableLength
   ssb.progressStat = 0.ExpMovingAverager
   ssb.timeStat = 0.ExpMovingAverager
   ssb.startTime = now
@@ -98,13 +97,6 @@ proc reset*(ssb: var SingleSuruBar, iterableLength: int) =
   ssb.lastAccess = now
 
 # suru bar
-
-proc initSuruBar*(bars: int = 1): SuruBar =
-  ## Creates a SuruBar with the given amount of bars
-  ## Does not prime the bar for a loop, use ``setup`` for that
-  SuruBar(
-    bars: initSingleSuruBar(25).repeat(bars),
-  )
 
 iterator items*(sb: SuruBar): SingleSuruBar =
   for bar in sb.bars:
@@ -117,6 +109,12 @@ iterator mitems*(sb: var SuruBar): var SingleSuruBar =
     inc(index)
 
 iterator pairs*(sb: SuruBar): (int, SingleSuruBar) =
+  var index: int
+  while index < sb.bars.len:
+    yield (index, sb.bars[index])
+    inc(index)
+
+iterator mpairs*(sb: var SuruBar): (int, var SingleSuruBar) =
   var index: int
   while index < sb.bars.len:
     yield (index, sb.bars[index])
@@ -145,35 +143,28 @@ proc `format=`*(sb: var SuruBar, format: proc(ssb: SingleSuruBar): string {.gcsa
   for bar in sb.mitems:
     bar.format = format
 
-proc setup*(sb: var SuruBar, iterableLengths: varargs[int]) =
-  # call this immediately before your loop
-  # sets certain fields more properly now that the iterable length is known
-  doAssert iterableLengths.len == sb.bars.len
+proc initSuruBar*(bars: int = 1): SuruBar =
+  ## Creates a SuruBar with the given amount of bars
+  ## Does not prime the bar for a loop, use ``setup`` for that
+  SuruBar(
+    bars: initSingleSuruBar(25).repeat(bars),
+  )
 
-  for index in 1..<iterableLengths.len:
-    echo ""
-  if iterableLengths.len > 1:
-    stdout.cursorUp(iterableLengths.len - 1)
+proc setup*(sb: var SuruBar) =
+  ## Sets up stdout and the time fields for running
+  ## Call this immediately before your loop
 
-  for index, iterableLength in iterableLengths:
-    sb[index].total = iterableLength
-    sb[index].startTime = getMonoTime()
-    sb[index].currentAccess = sb[index].startTime
-    sb[index].lastAccess = sb[index].startTime
-    sb[index].lastChange = sb[index].startTime
-    sb[index].timeStat.push 0
-    sb[index].progressStat.push 0
+  stdout.write("\n".repeat(sb.bars.high))
+  if sb.bars.high > 0:
+    stdout.cursorUp(sb.bars.high)
+
+  for index, bar in sb.mpairs:
+    bar.startTime = getMonoTime()
+    bar.currentAccess = bar.startTime
+    bar.lastAccess = bar.startTime
+    bar.lastChange = bar.startTime
     sb.moveCursor(index)
-    sb[index].show()
-
-proc setup*(sb: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) =
-  sb.setup((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
-
-proc start*(sb: var SuruBar, iterableLengths: varargs[int]) {.deprecated: "Deprecated, use ``setup``".} =
-  sb.setup(iterableLengths)
-
-proc start*(sb: var SuruBar, iterableLengthsAndAmounts: varargs[(int, int)]) {.deprecated: "Deprecated, use ``setup``".} =
-  sb.setup(iterableLengthsAndAmounts)
+    bar.show()
 
 proc update*(sb: var SuruBar, delay: int = 8_000_000, index: int = -1) =
   template update {.dirty.} =
@@ -202,14 +193,6 @@ proc finish*(sb: var SuruBar) =
 
 when compileOption("threads"):
   # TODO: fix code duplication
-  proc initSuruBarThreaded*(bars: int = 1): ptr SuruBarController =
-    ## Creates a SuruBar with the given amount of bars
-    ## Does not prime the bar for a loop, use ``setup`` for that
-    result = createShared(SuruBarController)
-    result[] = SuruBarController(
-      bar: SuruBar(bars: initSingleSuruBar(25).repeat(bars)),
-    )
-
   iterator items*(sbc: ptr SuruBarController): SingleSuruBar =
     for bar in sbc[].bar.bars:
       yield bar
@@ -234,10 +217,6 @@ when compileOption("threads"):
     for bar in sbc[].bar.mitems:
       inc bar, y
 
-  proc `format=`*(sbc: ptr SuruBarController, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
-    for bar in sbc.mitems:
-      bar.format = format
-
   proc moveCursor(sbc: ptr SuruBarController, index: int = 0) =
     let difference = index - sbc[].bar.currentIndex
     if difference < 0:
@@ -245,6 +224,18 @@ when compileOption("threads"):
     elif difference > 0:
       stdout.cursorDown(abs(difference))
     sbc[].bar.currentIndex = index
+
+  proc `format=`*(sbc: ptr SuruBarController, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
+    for bar in sbc.mitems:
+      bar.format = format
+
+  proc initSuruBarThreaded*(bars: int = 1): ptr SuruBarController =
+    ## Creates a SuruBar with the given amount of bars
+    ## Does not prime the bar for a loop, use ``setup`` for that
+    result = createShared(SuruBarController)
+    result[] = SuruBarController(
+      bar: SuruBar(bars: initSingleSuruBar(25).repeat(bars)),
+    )
 
   proc setup*(sbc: ptr SuruBarController, iterableLengths: varargs[int]) =
     sbc[].bar.setup(iterableLengths)
@@ -257,9 +248,6 @@ when compileOption("threads"):
       sbc[].bar.finish()
 
     createThread(sbc[].progressThread, progressThread, sbc)
-
-  proc setup*(sbc: ptr SuruBarController, iterableLengthsAndAmounts: varargs[(int, int)]) =
-    sbc.setup((@iterableLengthsAndAmounts).foldl(a & b[0].repeat(b[1]), newSeq[int]()))
 
   template update*(sbc: ptr SuruBarController, delay: int = 0, index: int = 0) =
     discard
@@ -292,7 +280,7 @@ macro suru*(forLoop: ForLoopStmt): untyped =
 
   let
     toIterate = forLoop[^2][1] # the "x" in "for i in x"
-  
+
   var
     preLoop = newStmtList()
     body = forLoop[^1]
@@ -357,13 +345,15 @@ macro suru*(forLoop: ForLoopStmt): untyped =
 
   if not totalVal.isNil:
     preLoop.add quote do:
-      `bar`.setup(`totalVal`)
+      `bar`[0].total = `totalVal`
   else:
     preLoop.add quote do:
       when compiles(len(`toIterate`)):
-        `bar`.setup(len(`toIterate`))
+        `bar`[0].total = `toIterate`.len
       else:
-        `bar`.setup(0)
+        `bar`[0].total = 0
+  preLoop.add quote do:
+    `bar`.setup()
 
   # makes body a statement list to be able to add statements
   if body.kind != nnkStmtList:
