@@ -58,14 +58,14 @@ proc `progress=`*(ssb: var SingleSuruBar, progress: int) =
 proc `format=`*(ssb: var SingleSuruBar, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
   ssb.format = format
 
-import ./suru/format
+import ./suru/fractional_bar
 
 # single suru bar
 
 proc initSingleSuruBar*(length: int): SingleSuruBar =
   SingleSuruBar(
     length: length,
-    format: format.format,
+    format: format,
   )
 
 proc inc*(ssb: var SingleSuruBar, y: Natural = 1) =
