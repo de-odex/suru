@@ -1,0 +1,48 @@
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '*.nim'
+      - '*.nims'
+      - '*.nimble'
+  pull_request:
+    paths:
+      - '*.nim'
+      - '*.nims'
+      - '*.nimble'
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        nim-version:
+          - '1.4.x'
+          #- '1.6.x' # current stable
+          - 'stable'
+          - 'devel'
+    name: test on ${{ matrix.os }}, Nim ver. ${{ matrix.nim-version }}
+    steps:
+      - uses: actions/checkout@v2
+
+      # no dependencies, maybe in the future
+
+      #- name: cache nimble
+      #  id: cache-nimble
+      #  uses: actions/cache@v1
+      #  with:
+      #    path: ~/.nimble
+      #    key: ${{ runner.os }}-nimble-${{ hashFiles('*.nimble') }}
+      #  if: runner.os != 'Windows'
+
+      - name: set Nim environment up
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: "${{ matrix.nim-version }}"
+
+      - run: nim r ./tests/tests.nim 
