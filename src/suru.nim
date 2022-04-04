@@ -1,6 +1,17 @@
-import macros, std/monotimes, times, terminal, math, strutils, sequtils, unicode, strformat
+import std/[
+  macros,
+  math,
+  monotimes,
+  sequtils,
+  strutils,
+  terminal,
+  times,
+  unicode,
+]
+when compileOption("threads"):
+  import std/os
+
 {.experimental: "forLoopMacros".}
-when compileOption("threads"): import os
 
 type
   ExpMovingAverager = distinct float

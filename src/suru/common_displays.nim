@@ -1,7 +1,11 @@
-import strformat
-import strutils
+import std/[
+  strformat,
+  strutils,
+]
 import ../suru
-import ./format
+import "."/[
+  format,
+]
 
 proc percentDisplay*(ssb: SingleSuruBar): string =
   if ssb.total > 0:

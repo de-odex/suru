@@ -1,4 +1,12 @@
-import macros, std/monotimes, times, math, strutils, unicode, strformat
+import std/[
+  macros,
+  monotimes,
+  times,
+  math,
+  strutils,
+  unicode,
+  strformat
+]
 import ../suru
 
 const

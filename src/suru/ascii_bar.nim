@@ -1,8 +1,12 @@
-import strformat
-import strutils
+import std/[
+  strformat,
+  strutils,
+]
 import ../suru
-import ./format
-import ./common_displays
+import "."/[
+  format,
+  common_displays,
+]
 
 proc barDisplay*(ssb: SingleSuruBar): string =
   if ssb.total > 0:
