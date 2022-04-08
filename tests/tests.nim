@@ -17,7 +17,9 @@ suite "basic":
     echo "check if this line is removed by the bars"
     sleep 1000
     var sb = initSuruBar(2)
-    sb.setup(1000, 40)
+    sb[0].total = 1000
+    sb[1].total = 40
+    sb.setup()
     for a in 1..1000:
       sleep 25
       inc sb[0]
@@ -30,9 +32,12 @@ suite "basic":
 
   test "iterative bar":
     var sb = initSuruBar(2)
-    sb.setup(10, 100)
+    sb[0].total = 10
+    sb[1].total = 100
+    sb.setup()
     for a in 1..10:
-      sb[1].reset(a*10)
+      sb[1].reset()
+      sb[1].total = a*10
       for b in 1..a*10:
         sleep 25
         inc sb[1]
@@ -43,7 +48,8 @@ suite "basic":
 
   test "changing total":
     var sb = initSuruBar()
-    sb.setup(0)
+    sb[0].total = 0
+    sb.setup()
     for a in temp():
       if a in 1..50:
         sb[0].total += 4
@@ -71,7 +77,8 @@ suite "time (eta and speed)":
 
   test "alternate long time":
     var sb = initSuruBar()
-    sb.setup(4)
+    sb[0].total = 4
+    sb.setup()
     for a in 1..1000:
       sleep 5
       if a mod 250 == 0:
@@ -100,7 +107,8 @@ suite "time (eta and speed)":
 suite "benchmark":
   test "overhead": # use -d:suruDebug to see overhead
     var sb = initSuruBar()
-    sb.setup(10_000_000)
+    sb[0].total = 10_000_000
+    sb.setup()
     for a in 1..10_000_000:
       # sleep 1
       inc sb
@@ -109,7 +117,9 @@ suite "benchmark":
 
   test "multi-bar frame time":
     var sb = initSuruBar(30)
-    sb.setup((10_000, 30))
+    for ssb in sb.mitems:
+      ssb.total = 100_000
+    sb.setup()
     for a in 1..10_000:
       # sleep 1
       inc sb
@@ -121,7 +131,9 @@ suite "benchmark":
 suite "threaded":
   test "advanced":
     var sb = initSuruBarThreaded(30)
-    sb.setup((100_000, 30))
+    for ssb in sb.mitems:
+      ssb.total = 100_000
+    sb.setup()
     for a in 1..100_000:
       sleep 1
       inc sb
@@ -130,7 +142,8 @@ suite "threaded":
 
   test "overhead": # use -d:suruDebug to see overhead
     var sb = initSuruBarThreaded()
-    sb.setup(10_000_000)
+    sb[0].total = 10_000_000
+    sb.setup()
     for a in 1..10_000_000:
       # sleep 1
       inc sb
