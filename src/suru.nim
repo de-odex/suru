@@ -249,7 +249,7 @@ when compileOption("threads"):
     )
 
   proc setup*(sbc: ptr SuruBarController, iterableLengths: varargs[int]) =
-    sbc[].bar.setup(iterableLengths)
+    sbc[].bar.setup()
 
     proc progressThread(sbc: ptr SuruBarController) {.thread.} =
       while not sbc.finished:
