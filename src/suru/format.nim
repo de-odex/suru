@@ -18,13 +18,14 @@ const
 
 proc fitMagnitude*(n: float): tuple[n: float, magnitude: int] =
   result = (n, 0)
-  while (result.n < 0.1 or result.n > 1000) and (result.magnitude != prefixes.high or result.magnitude != prefixes.low):
-    if result.n > 1000:
-      result.n /= 1000
-      inc result.magnitude
-    elif n < 0.1:
-      result.n *= 1000
-      dec result.magnitude
+  if result.n != 0:
+    while (result.n < 0.1 or result.n > 1000) and (result.magnitude <= prefixes.high or result.magnitude >= prefixes.low):
+      if result.n > 1000:
+        result.n /= 1000
+        inc result.magnitude
+      elif result.n < 0.1:
+        result.n *= 1000
+        dec result.magnitude
 
 proc formatUnit*(n: float): string =
   case n.classify
