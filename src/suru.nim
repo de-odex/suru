@@ -14,7 +14,9 @@ when compileOption("threads"):
 {.experimental: "forLoopMacros".}
 
 type
-  ExpMovingAverager = distinct float
+  ExpMovingAverager = object
+    prevSample: float
+    value: float
   SingleSuruBar* = object
     length*: int
     progress: int
@@ -22,9 +24,9 @@ type
     progressStat: ExpMovingAverager # moving average of increments to progresses
     timeStat: ExpMovingAverager     # moving average of time difference between progresses
     startTime: MonoTime             # start time of bar
-    lastChange: MonoTime            # last time bar was changed, used for timeStat
-    currentAccess: MonoTime
-    lastAccess: MonoTime
+    lastChange: MonoTime            # last time bar was changed in value, used for timeStat
+    currentAccess: MonoTime         # the time bar started to be updated
+    lastAccess: MonoTime            # last time bar was updated
     format: proc(ssb: SingleSuruBar): string {.gcsafe.}
   SuruBar* = object
     bars: seq[SingleSuruBar]
@@ -37,24 +39,37 @@ when compileOption("threads"):
       progressThread: Thread[ptr SuruBarController]
 
 # exponential moving averager
+# irregular time series version
+# https://letianzj.github.io/exponential-moving-average.html
+# https://oroboro.com/irregular-ema/
+# http://eckner.com/papers/Algorithms%20for%20Unevenly%20Spaced%20Time%20Series.pdf
 
-const alpha = exp(-1/5)
+const tau = 1/5
 
-proc push(mv: var ExpMovingAverager, value: SomeNumber) =
-  let value = value.float
-  if mv.float == 0:
-    mv = value.ExpMovingAverager
+proc push(mv: var ExpMovingAverager, sample: SomeNumber, delta: float) =
+  let
+    sample = sample.float
+    (weight1, weight2) = block:
+      discard
+      let temp = delta / tau
+      let w1 = exp(-temp)
+      (w1, (1 - w1) / temp)
+  if mv.value == 0 and mv.prevSample == 0:
+    mv.value = sample
   else:
-    mv = (value + alpha * (mv.float - value)).ExpMovingAverager
+    mv.value = (mv.value * weight1) + (sample * (1 - weight2)) + (mv.prevSample * (weight2 - weight1))
+  mv.prevSample = sample
 
 # getters and format generators
 
 proc progress*(ssb: SingleSuruBar): int = ssb.progress
 proc perSecond*(ssb: SingleSuruBar): float =
-  ssb.progressStat.float * (1_000_000_000 / ssb.timeStat.float)
+  ssb.progressStat.value * (1_000_000_000 / ssb.timeStat.value)
 proc elapsed*(ssb: SingleSuruBar): float =
   (ssb.currentAccess.ticks - ssb.startTime.ticks).float / 1_000_000_000
 proc eta*(ssb: SingleSuruBar): float =
+  # remaining (N) / rate (N/s) = time to do remaining (s)
+  # eta = time to do remaining - time elapsed to work on remaining
   (ssb.total - ssb.progress).float / ssb.perSecond - ((ssb.currentAccess.ticks - ssb.lastChange.ticks).float / 1_000_000_000)
 proc percent*(ssb: SingleSuruBar): float = ssb.progress / ssb.total
 
@@ -62,9 +77,9 @@ proc `progress=`*(ssb: var SingleSuruBar, progress: int) =
   let lastProgress = ssb.progress
   ssb.progress = progress
   let newTime = getMonoTime()
-  ssb.timeStat.push (newTime.ticks - ssb.lastChange.ticks).int
+  ssb.timeStat.push((newTime.ticks - ssb.lastChange.ticks).int, 1) # delta of 1 == regular time series EMA
+  ssb.progressStat.push(ssb.progress - lastProgress, (newTime.ticks - ssb.lastChange.ticks).float / 1_000_000_000)
   ssb.lastChange = newTime
-  ssb.progressStat.push ssb.progress - lastProgress
 
 proc `format=`*(ssb: var SingleSuruBar, format: proc(ssb: SingleSuruBar): string {.gcsafe.}) =
   ssb.format = format
@@ -100,8 +115,8 @@ proc reset*(ssb: var SingleSuruBar) =
   ## Resets the bar to an empty bar, not including its length and total.
   let now = getMonoTime()
   ssb.progress = 0
-  ssb.progressStat = 0.ExpMovingAverager
-  ssb.timeStat = 0.ExpMovingAverager
+  ssb.progressStat = ExpMovingAverager()
+  ssb.timeStat = ExpMovingAverager()
   ssb.startTime = now
   ssb.lastChange = now
   ssb.currentAccess = now
@@ -195,9 +210,15 @@ proc update*(sb: var SuruBar, delay: int = 8_000_000, index: int = -1) =
     update()
 
 proc finish*(sb: var SuruBar) =
-  for index, _ in sb:
+  template update {.dirty.} =
+    sb[index].currentAccess = newTime
     sb.moveCursor(index)
     sb[index].show()
+    sb[index].lastAccess = newTime
+  let
+    newTime = getMonoTime()
+  for index, _ in sb:
+    update()
   echo ""
 
 #
