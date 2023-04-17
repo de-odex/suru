@@ -31,7 +31,7 @@ type
     currentIndex: int # for usage in show(), tracks current index cursor is on relative to first progress bar
 when compileOption("threads"):
   type
-    SuruBarController = object # new object to still allow non-threaded SuruBars when threads:on
+    SuruBarController* = object # new object to still allow non-threaded SuruBars when threads:on
       bar: SuruBar
       finished: bool
       progressThread: Thread[ptr SuruBarController]
