@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.3.1"
+version       = "0.3.2"
 author        = "de-odex"
 description   = "A tqdm-style progress bar in Nim"
 license       = "MIT"
