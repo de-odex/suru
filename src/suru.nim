@@ -77,7 +77,7 @@ proc `progress=`*(ssb: var SingleSuruBar, progress: int) =
   let lastProgress = ssb.progress
   ssb.progress = progress
   let newTime = getMonoTime()
-  ssb.timeStat.push((newTime.ticks - ssb.lastChange.ticks).int, 1) # delta of 1 == regular time series EMA
+  ssb.timeStat.push(newTime.ticks - ssb.lastChange.ticks, 1) # delta of 1 == regular time series EMA
   ssb.progressStat.push(ssb.progress - lastProgress, (newTime.ticks - ssb.lastChange.ticks).float / 1_000_000_000)
   ssb.lastChange = newTime
 
